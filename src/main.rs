@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate diesel;
 
 use crate::models::{Input, NewRecord, Output};
@@ -11,11 +10,11 @@ use diesel::{
 };
 use futures03::StreamExt;
 use lazy_static::lazy_static;
-use models::Record;
+use models::{Record, RespRecords};
 use prost::Message;
 use proto::{module_output::Data as ModuleOutputData, BlockScopedData, Records};
 use r2d2::{Pool, PooledConnection};
-use std::{collections::HashMap, env, net::SocketAddr, str::FromStr, sync::Arc, vec};
+use std::{collections::HashMap, env, net::SocketAddr, str::FromStr, sync::Arc};
 use substreams::SubstreamsEndpoint;
 use substreams_stream::{BlockResponse, SubstreamsStream};
 
@@ -231,14 +230,44 @@ async fn serve(host: &String, port: &u16) {
         .unwrap();
 }
 
-async fn records_handler(Query(params): Query<HashMap<String, String>>) -> Json<Vec<Record>> {
-    let mut conn = POOL.get().unwrap();
+async fn records_handler(Query(params): Query<HashMap<String, String>>) -> Json<Vec<RespRecords>> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let default_start_block = "0".to_string();
+    let default_end_block = i64::MAX.to_string();
+    let start_block = params.get("start_block").unwrap_or(&default_start_block);
+    let start_block = i64::from_str(start_block).unwrap_or(0);
+    let end_block = params.get("end_block").unwrap_or(&default_end_block);
+    let end_block = i64::from_str(&end_block).unwrap_or(i64::MAX);
 
-    if let Some(height) = params.get("height") {
-        Json(query_records(&mut conn, height).unwrap())
-    } else {
-        Json(vec![])
-    }
+    let records = get_records_by_height(&mut conn, start_block, end_block).unwrap();
+
+    let results = records
+        .iter()
+        .map(|record| {
+            let outputs: Vec<Output> = serde_json::from_str(&record.outputs).unwrap();
+            let record_values = outputs
+                .into_iter()
+                .filter_map(|output| {
+                    if output.r#type.eq("record") {
+                        Some(output.value)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            RespRecords {
+                records: record_values,
+                transaction_id: record.transaction_id.clone(),
+                transition_id: record.transition_id.clone(),
+                network: record.network,
+                height: record.height,
+                timestamp: record.timestamp,
+            }
+        })
+        .collect::<Vec<RespRecords>>();
+
+    Json(results)
 }
 
 fn batch_insert_records(
@@ -278,9 +307,9 @@ fn batch_insert_records(
             previous_hash: &record.previous_hash,
             transaction_id: &record.transaction_id,
             transition_id: &record.transition_id,
-            network: &record.network.to_string(),
-            height: &record.height.to_string(),
-            timestamp: &record.timestamp.to_string(),
+            network: record.network as i64,
+            height: record.height as i64,
+            timestamp: record.timestamp as i64,
         };
 
         diesel::insert_into(record::table)
@@ -293,14 +322,15 @@ fn batch_insert_records(
     Ok(())
 }
 
-fn query_records(
+fn get_records_by_height(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    height: &String,
+    start_block: i64,
+    end_block: i64,
 ) -> Result<Vec<Record>, Error> {
-    use schema::record::dsl::{height as dsl_height, record};
+    use schema::record::dsl::*;
 
     let records = record
-        .filter(dsl_height.eq(height))
+        .filter(height.between(start_block, end_block))
         .select(Record::as_select())
         .load(conn)
         .expect("Error loading records");

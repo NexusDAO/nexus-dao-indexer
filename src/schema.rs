@@ -10,8 +10,8 @@ diesel::table! {
         block_hash -> Text,
         previous_hash -> Text,
         transaction_id -> Text,
-        network -> Text,
-        height -> Text,
-        timestamp -> Text,
+        network -> Int8,
+        height -> Int8,
+        timestamp -> Int8,
     }
 }

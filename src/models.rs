@@ -1,5 +1,6 @@
 use super::schema::record;
 use diesel::prelude::*;
+use diesel::sql_types::Array;
 use diesel::Queryable;
 use serde::{Deserialize, Serialize};
 
@@ -15,9 +16,9 @@ pub struct Record {
     pub previous_hash: String,
     pub transaction_id: String,
     pub transition_id: String,
-    pub network: String,
-    pub height: String,
-    pub timestamp: String,
+    pub network: i64,
+    pub height: i64,
+    pub timestamp: i64,
 }
 
 #[derive(Insertable)]
@@ -31,9 +32,9 @@ pub struct NewRecord<'a> {
     pub previous_hash: &'a str,
     pub transaction_id: &'a str,
     pub transition_id: &'a str,
-    pub network: &'a str,
-    pub height: &'a str,
-    pub timestamp: &'a str,
+    pub network: i64,
+    pub height: i64,
+    pub timestamp: i64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -49,4 +50,14 @@ pub struct Output {
     pub id: String,
     pub checksum: String,
     pub value: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RespRecords {
+    pub records: Vec<String>,
+    pub transaction_id: String,
+    pub transition_id: String,
+    pub network: i64,
+    pub height: i64,
+    pub timestamp: i64,
 }

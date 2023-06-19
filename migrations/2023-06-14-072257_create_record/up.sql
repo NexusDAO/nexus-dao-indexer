@@ -7,9 +7,9 @@ CREATE TABLE record (
   block_hash TEXT NOT NULL,
   previous_hash TEXT NOT NULL,
   transaction_id TEXT NOT NULL,
-  network TEXT NOT NULL,
-  height TEXT NOT NULL,
-  timestamp TEXT NOT NULL
+  network BIGINT NOT NULL,
+  height BIGINT NOT NULL,
+  timestamp BIGINT NOT NULL
 );
 
 CREATE INDEX idx_height ON record (height);
