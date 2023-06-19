@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package sf.aleo.record.v1;
+
+option go_package = "github.com/NexusDAO/firehose-aleo/types/pb/sf/aleo/type/v1;pbaleo";
+
+message Records {
+    repeated Record records = 1;
+}
+
+message Record {
+    string program = 1;
+    string function = 2;
+    repeated Input inputs = 3;
+    repeated Output outputs = 4;
+    string block_hash = 5;
+    string previous_hash = 6;
+    string transaction_id = 7;
+    string transition_id = 8;
+    uint32 network = 9;
+    uint32 height = 10;
+    int64 timestamp = 11;
+}
+
+message Input{
+    string type = 1;
+    string id = 2;
+    string value = 3;
+}
+
+message Output{
+    string type = 1;
+    string id = 2;
+    string checksum = 3;
+    string value = 4;
+}
