@@ -16,6 +16,8 @@ use r2d2::PooledConnection;
 use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
 use substreams::SubstreamsEndpoint;
 use substreams_stream::{BlockResponse, SubstreamsStream};
+use tower_http::cors::{AllowOrigin, CorsLayer,Any};
+use http::{Request, Response, Method, header};
 
 mod cli;
 mod database;
@@ -143,7 +145,11 @@ async fn sync(
 }
 
 async fn serve(host: &String, port: &u16) {
-    let app = routes();
+    let app = routes().layer( CorsLayer::new()
+    .allow_methods([Method::GET])
+    .allow_origin(Any)
+    .allow_headers(Any)
+);
     let addr = SocketAddr::from_str(&format!("{}:{}", host, port)).unwrap();
     println!("listening on {}", addr);
     axum::Server::bind(&addr)
