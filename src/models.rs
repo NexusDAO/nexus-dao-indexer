@@ -1,7 +1,5 @@
 use super::schema::record;
-use diesel::prelude::*;
-use diesel::sql_types::Array;
-use diesel::Queryable;
+use diesel::{prelude::*, Queryable};
 use serde::{Deserialize, Serialize};
 
 #[derive(Queryable, Selectable, Deserialize, Serialize)]
