@@ -1,11 +1,11 @@
-use std::{collections::HashMap, str::FromStr};
-use axum::{extract::Query, response::Json};
-use diesel::{r2d2::ConnectionManager, PgConnection};
-use r2d2::PooledConnection;
 use crate::{
     database::{get_records_by_height, POOL},
     models::{Output, RespRecords},
 };
+use axum::{extract::Query, response::Json};
+use diesel::{r2d2::ConnectionManager, PgConnection};
+use r2d2::PooledConnection;
+use std::{collections::HashMap, str::FromStr};
 
 pub async fn records_handler(
     Query(params): Query<HashMap<String, String>>,
