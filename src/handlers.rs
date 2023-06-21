@@ -3,8 +3,8 @@ use axum::{extract::Query, response::Json};
 use diesel::{r2d2::ConnectionManager, PgConnection};
 use r2d2::PooledConnection;
 use crate::{
-    database::{get_records_by_height, POOL},
-    models::{Output, RespRecords},
+    database::{get_records_by_height, POOL, get_profile_by_address, create_profile},
+    models::{Output, RespRecords, RespProfile, Profile}, schema::profile::avatar,
 };
 
 pub async fn records_handler(
@@ -47,4 +47,36 @@ pub async fn records_handler(
         .collect::<Vec<RespRecords>>();
 
     Json(results)
+}
+
+
+pub async fn get_profile_handler(
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<Profile> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let default_addr = "0".to_string();
+    let address = params.get("address").unwrap_or(&default_addr);
+
+    let profiles = get_profile_by_address(&mut conn, address).unwrap();
+    
+    Json(profiles)
+}
+
+pub async fn create_profile_handler(
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<String> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    
+    let default_addr = "0".to_string();
+    let default_name = "0".to_string();
+    let default_avatar = "0".to_string();
+    let default_bio = "0".to_string();
+
+    let addr = params.get("address").unwrap_or(&default_addr);
+    let names = params.get("name").unwrap_or(&default_name);
+    let avatars = params.get("avatar").unwrap_or(&default_avatar);
+    let bios = params.get("bio").unwrap_or(&default_bio);
+    
+    let a = create_profile(&mut conn, addr, names, avatars, bios).unwrap();
+    Json("SUCCESS".to_string())
 }
