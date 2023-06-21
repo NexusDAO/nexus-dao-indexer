@@ -10,14 +10,14 @@ use cli::{Cli, Commands};
 use database::POOL;
 use diesel::{r2d2::ConnectionManager, PgConnection, RunQueryDsl};
 use futures03::StreamExt;
-use http::{header, Method, Request, Response};
+use http::Method;
 use prost::Message;
 use proto::{module_output::Data as ModuleOutputData, BlockScopedData, Records};
 use r2d2::PooledConnection;
 use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
 use substreams::SubstreamsEndpoint;
 use substreams_stream::{BlockResponse, SubstreamsStream};
-use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use tower_http::cors::{Any, CorsLayer};
 
 mod cli;
 mod database;
