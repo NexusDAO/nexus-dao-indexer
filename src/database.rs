@@ -52,35 +52,36 @@ pub fn get_profile_by_address(
 pub fn create_profile(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     addr: &String, names: &String, avatars: &String, bios: &String
-) -> Result<NewProfile, Error> {
-    use schema::profile::dsl::*;
+) -> Result<String,Error> {
+    use schema::profile;
 
-    let new_profile = NewProfile { address: addr, name: names, avatar: avatars, bio: bios };
+    let new_profile: NewProfile<'_> = NewProfile { address: addr, name: names, avatar: avatars, bio: bios };
     
     diesel::insert_into(profile::table)
-        .values(&new_profile)
-        .returning(profile::as_returning())
-        .get_result(conn)
-        .expect("Error saving new profile");
+    .values(&new_profile)
+    .on_conflict(profile::address)
+    .do_nothing()
+    .execute(conn)?;
         
-    Ok(new_profile)
+    Ok("Insert successfully!".to_string())
 }
 
 pub fn update_profile(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     addr: &str, name: &str, avatar: &str, bio: &str
-) -> Result<Profile, Error> {
+) -> Result<String, Error> {
     use schema::profile::dsl::*;
 
     let profiles = diesel::update(profile.filter(address.eq(addr)))
-        .set(name.eq(name))
-        .set(avatar.eq(avatar))
-        .set(bio.eq(bio))
-        .returning(profile::as_returning())
-        .get_result(conn)
+        .set((
+            name.eq(name),
+            avatar.eq(avatar),
+            bio.eq(bio),
+        ))
+        .execute(conn)
         .unwrap();
 
-    Ok(profiles)   
+    Ok("Insert successfully!".to_string())
 }
 
 pub fn get_all_dao_ids(
