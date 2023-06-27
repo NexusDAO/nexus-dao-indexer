@@ -1,6 +1,6 @@
 use super::schema::record;
 use super::schema::profile;
-use super::schema::dao_info;
+use super::schema::daos_schema;
 use super::schema::token_info;
 use super::schema::dao;
 use super::schema::token;
@@ -8,7 +8,8 @@ use super::schema::stake;
 use super::schema::proposal;
 use super::schema::vote;
 use super::schema::voting_results;
-use super::schema::dao_table;
+use super::schema::token_info_schema;
+use super::schema::hold_token;
 use diesel::{prelude::*, Queryable};
 use serde::{Deserialize, Serialize};
 
@@ -99,11 +100,12 @@ pub struct RespProfile {
 }
 
 #[derive(Queryable, Selectable, Deserialize, Serialize)]
-#[diesel(table_name = dao_info)]
+#[diesel(table_name = daos_schema)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct DaoInfo {
+pub struct DaosSchema {
     pub name: String,
-    pub dao_type: String,
+    pub dao_type: i64,
+    pub creater: String,
     pub icon: String,
     pub description: String,
     pub official_link: String,
@@ -113,31 +115,78 @@ pub struct DaoInfo {
 #[diesel(table_name = token_info)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct TokenInfo {
+    pub id: i64,
     pub name: String,
     pub symbol: String,
-    pub supply: String,
-    pub decimals: String,
-    pub contract: String,
+    pub supply: i64,
+    pub decimals: i64,
+    pub max_mint_amount: i64,
+    pub minted_amount: i64,
+    pub dao_id: i64,
+    pub only_creator_can_mint: bool,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = token_info)]
+pub struct NewTokenInfo<'a> {
+    pub id: i64,
+    pub name: &'a str,
+    pub symbol: &'a str,
+    pub supply: i64,
+    pub decimals: i64,
+    pub max_mint_amount: i64,
+    pub minted_amount: i64,
+    pub dao_id: i64,
+    pub only_creator_can_mint: bool,
 }
 
 #[derive(Queryable, Selectable, Deserialize, Serialize)]
 #[diesel(table_name = dao)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Dao {
-    pub id: String,
+    pub id: i64,
+    pub name: String,
+    pub dao_type: i64,
     pub creater: String,
-    pub info: String,
-    pub token: String,
+    pub token_info_id: i64,
+    pub icon: String,
+    pub description: String,
+    pub official_link: String,
+    pub proposal_count: i64,
+    pub pass_proposal_count: i64,
+    pub vote_count: i64,
+    pub passed_votes_proportion: i64,  
+    pub passed_tokens_proportion: i64,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = dao)]
+pub struct NewDao<'a> {
+    pub id: i64,
+    pub name: &'a str,
+    pub dao_type: i64,
+    pub creater: &'a str,
+    pub token_info_id: i64,
+    pub icon: &'a str,
+    pub description: &'a str,
+    pub official_link: &'a str,
+    pub proposal_count: i64,
+    pub pass_proposal_count: i64,
+    pub vote_count: i64,
+    pub passed_votes_proportion: i64,  
+    pub passed_tokens_proportion: i64,
 }
 
 #[derive(Queryable, Selectable, Deserialize, Serialize)]
 #[diesel(table_name = token)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Token {
-    pub id: String,
     pub owner: String,
-    pub amount: String,
-    pub token_info: String,
+    pub gates: i64,
+    pub token_info_id: i64,
+    pub amount: i64,
+    pub expires: i64,
+    pub staked_at: i64, 
 }
 
 #[derive(Queryable, Selectable, Deserialize, Serialize)]
@@ -156,24 +205,28 @@ pub struct Stake {
 #[diesel(table_name = proposal)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Proposal {
-    pub id: String,
+    pub id: i64,
     pub title: String,
-    pub proposal_type: String,
+    pub proposer: String,
     pub summary: String,
     pub body: String,
-    pub proposer: String,
-    pub stake: String,
-    pub dao: String,
+    pub dao_id: i64,
     pub created: i64,
     pub duration: i64,
+    pub proposer_type: i64,
+    pub adopt: i64,
+    pub reject: i64,
+    pub status: i64,
 }
 
 #[derive(Queryable, Selectable, Deserialize, Serialize)]
 #[diesel(table_name = vote)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Vote {
-    pub proposal_id: String,
-    pub choice: bool,
+    pub voter: String,
+    pub proposal_id: i64,
+    pub token_id: i64,
+    pub is_agreed: bool,
 
 }
 
@@ -186,21 +239,50 @@ pub struct VotingResults {
     pub reject: i64,
 }
 
-
 #[derive(Queryable, Selectable, Deserialize, Serialize)]
-#[diesel(table_name = dao_table)]
+#[diesel(table_name = token_info_schema)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct DaoTable {
-    pub organization_name: String,
-    pub fund_rank: i64,
-    pub total_funds: String,
-    pub token_count: String,
-    pub token_price: String,
-    pub token_name: String,
-    pub token_holder_count: i64,
-    pub token_staker_count: i64,
-    pub proposal_count: i64,
-    pub vote_count: i64,
-    pub proposal_pass_rate: i64,
+pub struct TokenInfoSchema {
+    pub name: String,
+    pub symbol: String,
+    pub supply: i64,
+    pub decimals: i64,
+    pub max_mint_amount: i64,
 }
 
+#[derive(Queryable, Selectable, Deserialize, Serialize)]
+#[diesel(table_name = hold_token)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct HoldToken {
+    pub address: String,
+    pub amount: i64,
+    pub token_info_id: i64,
+}
+
+
+// #[derive(Queryable, Selectable, Deserialize, Serialize)]
+// #[diesel(table_name = dao_table)]
+// #[diesel(check_for_backend(diesel::pg::Pg))]
+// pub struct DaoTable {
+//     pub organization_name: String,
+//     pub fund_rank: i64,
+//     pub total_funds: String,
+//     pub token_count: String,
+//     pub token_price: String,
+//     pub token_name: String,
+//     pub token_holder_count: i64,
+//     pub token_staker_count: i64,
+//     pub proposal_count: i64,
+//     pub vote_count: i64,
+//     pub proposal_pass_rate: i64,
+// }
+
+pub enum DaoType {
+    Finance,
+    Governance,
+    Community,
+    Investment,
+    Creative,
+    Charity,
+    Education,
+}

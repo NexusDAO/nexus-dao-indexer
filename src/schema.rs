@@ -2,17 +2,27 @@
 
 diesel::table! {
     dao (id) {
-        id -> Text,
+        id -> Int8,
+        name -> Text,
+        dao_type -> Int8,
         creater -> Text,
-        info -> Text,
-        token -> Text,
+        token_info_id -> Int8,
+        icon -> Text,
+        description -> Text,
+        official_link -> Text,
+        proposal_count -> Int8,
+        pass_proposal_count -> Int8,
+        vote_count -> Int8,
+        passed_votes_proportion -> Int8,
+        passed_tokens_proportion -> Int8,
     }
 }
 
 diesel::table! {
-    dao_info (name) {
+    daos_schema (name) {
         name -> Text,
-        dao_type -> Text,
+        dao_type -> Int8,
+        creater -> Text,
         icon -> Text,
         description -> Text,
         official_link -> Text,
@@ -20,18 +30,10 @@ diesel::table! {
 }
 
 diesel::table! {
-    dao_table (organization_name) {
-        organization_name -> Text,
-        fund_rank -> Int8,
-        total_funds -> Text,
-        token_count -> Text,
-        token_price -> Text,
-        token_name -> Text,
-        token_holder_count -> Int8,
-        token_staker_count -> Int8,
-        proposal_count -> Int8,
-        vote_count -> Int8,
-        proposal_pass_rate -> Int8,
+    hold_token (address) {
+        address -> Text,
+        amount -> Int8,
+        token_info_id -> Int8,
     }
 }
 
@@ -46,16 +48,18 @@ diesel::table! {
 
 diesel::table! {
     proposal (id) {
-        id -> Text,
+        id -> Int8,
         title -> Text,
-        proposal_type -> Text,
+        proposer -> Text,
         summary -> Text,
         body -> Text,
-        proposer -> Text,
-        stake -> Text,
-        dao -> Text,
+        dao_id -> Int8,
         created -> Int8,
         duration -> Int8,
+        proposer_type -> Int8,
+        adopt -> Int8,
+        reject -> Int8,
+        status -> Int8,
     }
 }
 
@@ -87,28 +91,46 @@ diesel::table! {
 }
 
 diesel::table! {
-    token (id) {
-        id -> Text,
+    token (owner) {
         owner -> Text,
-        amount -> Text,
-        token_info -> Text,
+        gates -> Int8,
+        token_info_id -> Int8,
+        amount -> Int8,
+        expires -> Int8,
+        staked_at -> Int8,
     }
 }
 
 diesel::table! {
-    token_info (name) {
+    token_info (id) {
+        id -> Int8,
         name -> Text,
         symbol -> Text,
-        supply -> Text,
-        decimals -> Text,
-        contract -> Text,
+        supply -> Int8,
+        decimals -> Int8,
+        max_mint_amount -> Int8,
+        minted_amount -> Int8,
+        dao_id -> Int8,
+        only_creator_can_mint -> Bool,
     }
 }
 
 diesel::table! {
-    vote (proposal_id) {
-        proposal_id -> Text,
-        choice -> Bool,
+    token_info_schema (name) {
+        name -> Text,
+        symbol -> Text,
+        supply -> Int8,
+        decimals -> Int8,
+        max_mint_amount -> Int8,
+    }
+}
+
+diesel::table! {
+    vote (voter) {
+        voter -> Text,
+        proposal_id -> Int8,
+        token_id -> Int8,
+        is_agreed -> Bool,
     }
 }
 
@@ -122,14 +144,15 @@ diesel::table! {
 
 diesel::allow_tables_to_appear_in_same_query!(
     dao,
-    dao_info,
-    dao_table,
+    daos_schema,
+    hold_token,
     profile,
     proposal,
     record,
     stake,
     token,
     token_info,
+    token_info_schema,
     vote,
     voting_results,
 );
