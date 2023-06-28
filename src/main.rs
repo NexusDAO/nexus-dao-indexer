@@ -176,7 +176,7 @@ fn batch_insert_records(
             })
             .collect::<Vec<Input>>();
 
-        let outputs = record
+        let outputs: Vec<Output> = record
             .outputs
             .iter()
             .map(|output| Output {
