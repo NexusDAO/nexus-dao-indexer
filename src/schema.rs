@@ -1,7 +1,22 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    dao (id) {
+    auto_increment (key) {
+        key -> Int8,
+        value -> Int8,
+    }
+}
+
+diesel::table! {
+    balances (owner) {
+        owner -> Text,
+        amount -> Int8,
+        token_info_id -> Int8,
+    }
+}
+
+diesel::table! {
+    daos (id) {
         id -> Int8,
         name -> Text,
         dao_type -> Int8,
@@ -19,26 +34,14 @@ diesel::table! {
 }
 
 diesel::table! {
-    daos_schema (name) {
-        name -> Text,
-        dao_type -> Int8,
-        creater -> Text,
-        icon -> Text,
-        description -> Text,
-        official_link -> Text,
+    extend_pledge_period (key) {
+        key -> Int8,
+        value -> Int8,
     }
 }
 
 diesel::table! {
-    hold_token (address) {
-        address -> Text,
-        amount -> Int8,
-        token_info_id -> Int8,
-    }
-}
-
-diesel::table! {
-    profile (address) {
+    profiles (address) {
         address -> Text,
         name -> Text,
         avatar -> Text,
@@ -47,7 +50,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    proposal (id) {
+    proposals (id) {
         id -> Int8,
         title -> Text,
         proposer -> Text,
@@ -80,13 +83,10 @@ diesel::table! {
 }
 
 diesel::table! {
-    stake (id) {
-        id -> Text,
+    stake_amounts (owner) {
         owner -> Text,
-        amount -> Text,
-        token -> Text,
-        created -> Int8,
-        duration -> Int8,
+        amount -> Int8,
+        token_info_id -> Int8,
     }
 }
 
@@ -102,7 +102,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    token_info (id) {
+    token_infos (id) {
         id -> Int8,
         name -> Text,
         symbol -> Text,
@@ -116,17 +116,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    token_info_schema (name) {
-        name -> Text,
-        symbol -> Text,
-        supply -> Int8,
-        decimals -> Int8,
-        max_mint_amount -> Int8,
-    }
-}
-
-diesel::table! {
-    vote (voter) {
+    votes (voter) {
         voter -> Text,
         proposal_id -> Int8,
         token_id -> Int8,
@@ -134,25 +124,16 @@ diesel::table! {
     }
 }
 
-diesel::table! {
-    voting_results (proposal_id) {
-        proposal_id -> Text,
-        adopt -> Int8,
-        reject -> Int8,
-    }
-}
-
 diesel::allow_tables_to_appear_in_same_query!(
-    dao,
-    daos_schema,
-    hold_token,
-    profile,
-    proposal,
+    auto_increment,
+    balances,
+    daos,
+    extend_pledge_period,
+    profiles,
+    proposals,
     record,
-    stake,
+    stake_amounts,
     token,
-    token_info,
-    token_info_schema,
-    vote,
-    voting_results,
+    token_infos,
+    votes,
 );

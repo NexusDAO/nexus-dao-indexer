@@ -1,4 +1,4 @@
-use anyhow::Error;
+use anyhow::{Error, Ok};
 use clap::builder::Str;
 use diesel::{
     associations::HasTable,
@@ -10,8 +10,11 @@ use r2d2::{Pool, PooledConnection};
 use std::env;
 
 use crate::{
-    models::{Dao, NewProfile, Profile, Proposal, Record, NewTokenInfo, NewDao, Dao, TokenInfo},
-    schema,
+    models::{
+        Daos, NewDaos, NewProfiles, NewProposals, NewToken, NewTokenInfos,
+        Profiles, Proposals, Record, Token, TokenInfos, AutoIncrement, NewAutoIncrement, Balances, NewBalances, StakeAmounts,  NewStakeAmounts, ExtendPledgePeriod, NewExtendPledgePeriod
+    },
+    schema::{self},
 };
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
@@ -38,66 +41,29 @@ pub fn get_records_by_height(
 
 pub fn get_profile_by_address(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    addr: &String,
-) -> Result<Profile, Error> {
-    use schema::profile::dsl::*;
+    addr: String,
+) -> Result<Profiles, Error> {
+    use schema::profiles::dsl::*;
 
-    let profiles = profile
+    let mut vec_profiles: Vec<Profiles> = profiles
         .filter(address.eq(addr))
-        .select(Profile::as_select())
+        .select(Profiles::as_select())
         .load(conn)
-        .expect("Error loading records");
+        .expect("Error loading profile");
 
-    Ok(profiles[0])
-}
-
-pub fn create_profile(
-    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    addr: &String,
-    names: &String,
-    avatars: &String,
-    bios: &String,
-) -> Result<String, Error> {
-    use schema::profile;
-
-    let new_profile: NewProfile<'_> = NewProfile {
-        address: addr,
-        name: names,
-        avatar: avatars,
-        bio: bios,
-    };
-
-    diesel::insert_into(profile::table)
-        .values(&new_profile)
-        .on_conflict(profile::address)
-        .do_nothing()
-        .execute(conn)?;
-
-    Ok("Insert successfully!".to_string())
-}
-
-pub fn update_profile(
-    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    addr: &String,
-    name: &String,
-    avatar: &String,
-    bio: &String,
-) -> Result<String, Error> {
-    use schema::profile::dsl::*;
-
-    diesel::update(profile.filter(address.eq(addr)))
-        .set((name.eq(name), avatar.eq(avatar), bio.eq(bio)))
-        .execute(conn);
-
-    Ok("Update successfully!".to_string())
+    let ret_profiles = vec_profiles.pop();
+    if ret_profiles.is_some() {
+        return Ok(ret_profiles.unwrap())
+    }
+    return Err(Error::msg("failed find profile"))
 }
 
 pub fn get_all_dao_ids(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
 ) -> Result<Vec<String>, Error> {
-    use schema::dao::dsl::*;
+    use schema::daos::dsl::*;
     let mut ret_dao_ids: Vec<String> = Vec::new();
-    let dao_ids: Vec<i64> = dao.select(id).load(conn).expect("Error loading records");
+    let dao_ids: Vec<i64> = daos.select(id).load(conn).expect("Error loading records");
 
     for i in dao_ids {
         ret_dao_ids.push(i.to_string())
@@ -108,102 +74,40 @@ pub fn get_all_dao_ids(
 pub fn get_dao_by_id(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     dao_id: i64,
-) -> Result<Dao, Error> {
-    use schema::dao::dsl::*;
+) -> Result<Daos, Error> {
+    use schema::daos::dsl::*;
 
-    let daos: Vec<Dao> = dao
+    let mut ret_dao: Vec<Daos> = daos
         .filter(id.eq(dao_id))
-        .select(Dao::as_select())
+        .select(Daos::as_select())
         .load(conn)
         .expect("Error loading dao");
-
-    Ok(daos[0])
+    
+    let dao_op = ret_dao.pop();
+    if dao_op.is_some() {
+        return Ok(dao_op.unwrap())
+    }
+    return Err(Error::msg("failed find dao"))
 }
 
 pub fn get_dao_proposal_ids_by_dao_id(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     dao_id: i64,
 ) -> Result<Vec<String>, Error> {
-    use schema::proposal::dsl::*;
+    use schema::proposals::dsl::*;
     let mut ret_proposal_ids: Vec<String> = Vec::new();
 
-    let proposals: Vec<Proposal> = proposal
+    let prop: Vec<Proposals> = proposals
         .filter(dao_id.eq(dao_id))
-        .select(Proposal::as_select())
+        .select(Proposals::as_select())
         .load(conn)
         .expect("Error loading daos");
 
-    for i in proposals {
+    for i in prop {
         ret_proposal_ids.push(i.id.to_string())
     }
 
     Ok(ret_proposal_ids)
-}
-
-pub fn create_dao(
-    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    daos: Dao, token_infos: TokenInfo, proposal_id: i64
-) -> Result<String, Error> {
-    use schema::proposal::dsl::*;
-
-    let proposals:Vec<Proposal> = proposal
-        .filter(id.eq(proposal_id))
-        .select(Proposal::as_select())
-        .load(conn)
-        .expect("Error loading proposal");
-
-    assert_eq!(proposals[0].proposer, daos.creater);
-    assert_eq!(proposals[0].dao_id, 0);
-    assert_eq!(proposals[0].status, 2);
-    assert_eq!(proposals[0].proposer_type, 0);
-    assert!(daos.passed_votes_proportion<=100);
-    assert!(daos.passed_tokens_proportion<=100);
-
-    use schema::dao;
-
-    let new_dao = NewDao {
-        id: daos.id,
-        name: &daos.name,
-        dao_type: daos.dao_type,
-        creater: &daos.creater,
-        token_info_id: daos.token_info_id,
-        icon: &daos.icon,
-        description: &daos.description,
-        official_link: &daos.official_link,
-        proposal_count: daos.proposal_count,
-        pass_proposal_count: daos.pass_proposal_count,
-        vote_count: daos.vote_count,
-        passed_votes_proportion: daos.passed_votes_proportion,  
-        passed_tokens_proportion: daos.passed_tokens_proportion,
-    };
-
-    diesel::insert_into(dao::table)
-        .values(&new_dao)
-        .on_conflict(dao::id)
-        .do_nothing()
-        .execute(conn)?;
-    
-    use schema::token_info;
-
-    let new_token_info = NewTokenInfo {
-        id: token_infos.id,
-        name: &token_infos.name,
-        symbol: &token_infos.symbol,
-        supply: token_infos.supply,
-        decimals: token_infos.decimals,
-        max_mint_amount: token_infos.max_mint_amount,
-        minted_amount: token_infos.minted_amount,
-        dao_id: token_infos.dao_id,
-        only_creator_can_mint: token_infos.only_creator_can_mint,
-    };
-
-    diesel::insert_into(token_info::table)
-        .values(&new_token_info)
-        .on_conflict(token_info::id)
-        .do_nothing()
-        .execute(conn)?;
-
-    Ok("Insert successfully!".to_string())
 }
 
 // pub fn update_dao(
@@ -214,6 +118,7 @@ pub fn create_dao(
 // pub fn get_token_info(
 //     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
 // ) -> Result<Dao, Error> {
+
 // }
 
 // pub fn get_balances(
@@ -269,4 +174,404 @@ fn create_pg_pool() -> Result<PgPool, PoolError> {
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let manager = ConnectionManager::<PgConnection>::new(db_url);
     PgPool::builder().build(manager)
+}
+
+pub fn insert_token(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_token: Token,
+) -> Result<String, Error> {
+    use schema::token;
+
+    let new_token = NewToken {
+        owner: &param_token.owner,
+        gates: param_token.gates,
+        token_info_id: param_token.token_info_id,
+        amount: param_token.amount,
+        expires: param_token.expires,
+        staked_at: param_token.staked_at,
+    };
+
+    diesel::insert_into(token::table)
+        .values(&new_token)
+        .on_conflict(token::owner)
+        .do_nothing()
+        .execute(conn)?;
+
+    Ok("Insert successfully!".to_string())
+}
+
+pub fn update_token_by_owner(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_token: Token,
+    param_owner: &String,
+) -> Result<String, Error> {
+    use schema::token::dsl::*;
+
+    diesel::update(token.filter(owner.eq(param_owner)))
+        .set((
+            gates.eq(param_token.gates),
+            token_info_id.eq(param_token.token_info_id),
+            amount.eq(param_token.amount),
+            expires.eq(param_token.expires),
+            staked_at.eq(param_token.staked_at),
+        ))
+        .execute(conn).expect("Update: Error");
+
+    Ok("Update successfully!".to_string())
+}
+
+pub fn insert_token_info(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_token_info: TokenInfos,
+) -> Result<String, Error> {
+    use schema::token_infos;
+
+    let new_token_info = NewTokenInfos {
+        id: param_token_info.id,
+        name: &param_token_info.name,
+        symbol: &param_token_info.symbol,
+        supply: param_token_info.supply,
+        decimals: param_token_info.decimals,
+        max_mint_amount: param_token_info.max_mint_amount,
+        minted_amount: param_token_info.minted_amount,
+        dao_id: param_token_info.dao_id,
+        only_creator_can_mint: param_token_info.only_creator_can_mint,
+    };
+
+    diesel::insert_into(token_infos::table)
+        .values(&new_token_info)
+        .on_conflict(token_infos::id)
+        .do_nothing()
+        .execute(conn)?;
+
+    Ok("Insert successfully!".to_string())
+}
+
+pub fn update_token_info_by_id(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_token_info: TokenInfos,
+    param_id: i64,
+) -> Result<String, Error> {
+    use schema::token_infos::dsl::*;
+
+    diesel::update(token_infos.filter(id.eq(param_id)))
+        .set((
+            name.eq(&param_token_info.name),
+            symbol.eq(&param_token_info.symbol),
+            supply.eq(param_token_info.supply),
+            decimals.eq(param_token_info.decimals),
+            max_mint_amount.eq(param_token_info.max_mint_amount),
+            minted_amount.eq(param_token_info.minted_amount),
+            dao_id.eq(param_token_info.dao_id),
+            only_creator_can_mint.eq(param_token_info.only_creator_can_mint),
+        ))
+        .execute(conn).expect("Update: Error");
+
+    Ok("Update successfully!".to_string())
+}
+
+pub fn insert_balances(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_balances: Balances,
+) -> Result<String, Error> {
+    use schema::balances;
+
+    let new_balances = NewBalances {
+        owner: &param_balances.owner,
+        amount: param_balances.amount,
+        token_info_id: param_balances.token_info_id,
+    };
+
+    diesel::insert_into(balances::table)
+        .values(&new_balances)
+        .on_conflict(balances::owner)
+        .do_nothing()
+        .execute(conn)?;
+
+    Ok("Insert successfully!".to_string())
+}
+
+pub fn update_balances_by_owner(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_balances: Balances,
+    param_owner: &String,
+) -> Result<String, Error> {
+    use schema::balances::dsl::*;
+
+    diesel::update(balances.filter(owner.eq(param_owner)))
+        .set((
+            amount.eq(param_balances.amount),
+            token_info_id.eq(param_balances.token_info_id),
+        ))
+        .execute(conn).expect("Update: Error");
+
+    Ok("Update successfully!".to_string())
+}
+
+
+
+
+pub fn insert_stake_amounts(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_stake_amounts: StakeAmounts,
+) -> Result<String, Error> {
+    use schema::stake_amounts;
+
+    let new_stake_amounts = NewStakeAmounts {
+        owner: &param_stake_amounts.owner,
+        amount: param_stake_amounts.amount,
+        token_info_id: param_stake_amounts.token_info_id,
+    };
+
+    diesel::insert_into(stake_amounts::table)
+        .values(&new_stake_amounts)
+        .on_conflict(stake_amounts::owner)
+        .do_nothing()
+        .execute(conn)?;
+
+    Ok("Insert successfully!".to_string())
+}
+
+pub fn update_stake_amounts_by_owner(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_stake_amounts: StakeAmounts,
+    param_owner: &String,
+) -> Result<String, Error> {
+    use schema::stake_amounts::dsl::*;
+
+    diesel::update(stake_amounts.filter(owner.eq(param_owner)))
+        .set((
+            amount.eq(param_stake_amounts.amount),
+            token_info_id.eq(param_stake_amounts.token_info_id),
+        ))
+        .execute(conn).expect("Update: Error");
+
+    Ok("Update successfully!".to_string())
+}
+
+
+pub fn create_profile(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_profile: Profiles,
+) -> Result<String, Error> {
+    use schema::profiles;
+
+    let new_profile: NewProfiles<'_> = NewProfiles {
+        address: &param_profile.address,
+        name: &param_profile.name,
+        avatar: &param_profile.avatar,
+        bio: &param_profile.bio,
+    };
+
+    diesel::insert_into(profiles::table)
+        .values(&new_profile)
+        .on_conflict(profiles::address)
+        .do_nothing()
+        .execute(conn)?;
+
+    Ok("Insert successfully!".to_string())
+}
+
+pub fn update_profile(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_profile: Profiles,
+    param_addr: &String,
+) -> Result<String, Error> {
+    use schema::profiles::dsl::*;
+
+    diesel::update(profiles.filter(address.eq(param_addr)))
+        .set((
+            name.eq(&param_profile.name),
+            avatar.eq(&param_profile.avatar),
+            bio.eq(&param_profile.bio),
+        ))
+        .execute(conn).expect("Update: Error");
+
+    Ok("Update successfully!".to_string())
+}
+
+pub fn create_dao(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_dao: Daos,
+) -> Result<String, Error> {
+    use schema::daos;
+
+    let new_dao = NewDaos {
+        id: param_dao.id,
+        name: &param_dao.name,
+        dao_type: param_dao.dao_type,
+        creater: &param_dao.creater,
+        token_info_id: param_dao.token_info_id,
+        icon: &param_dao.icon,
+        description: &param_dao.description,
+        official_link: &param_dao.official_link,
+        proposal_count: param_dao.proposal_count,
+        pass_proposal_count: param_dao.pass_proposal_count,
+        vote_count: param_dao.vote_count,
+        passed_votes_proportion: param_dao.passed_votes_proportion,
+        passed_tokens_proportion: param_dao.passed_tokens_proportion,
+    };
+
+    diesel::insert_into(daos::table)
+        .values(&new_dao)
+        .on_conflict(daos::id)
+        .do_nothing()
+        .execute(conn)?;
+
+    Ok("Insert successfully!".to_string())
+}
+
+pub fn update_dao_by_id(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_dao: Daos,
+    param_id: i64,
+) -> Result<String, Error> {
+    use schema::daos::dsl::*;
+
+    diesel::update(daos.filter(id.eq(param_id)))
+        .set((
+            name.eq(&param_dao.name),
+            dao_type.eq(param_dao.dao_type),
+            creater.eq(&param_dao.creater),
+            token_info_id.eq(param_dao.token_info_id),
+            icon.eq(&param_dao.icon),
+            description.eq(&param_dao.description),
+            official_link.eq(&param_dao.official_link),
+            proposal_count.eq(param_dao.proposal_count),
+            pass_proposal_count.eq(param_dao.pass_proposal_count),
+            vote_count.eq(param_dao.vote_count),
+            passed_votes_proportion.eq(param_dao.passed_votes_proportion),
+            passed_tokens_proportion.eq(param_dao.passed_tokens_proportion),
+        ))
+        .execute(conn).expect("Update: Error");
+
+    Ok("Update successfully!".to_string())
+}
+
+pub fn create_proposal(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_proposal: Proposals,
+) -> Result<String, Error> {
+    use schema::proposals;
+
+    let new_proposal = NewProposals {
+        id: param_proposal.id,
+        title: &param_proposal.title,
+        proposer: &param_proposal.proposer,
+        summary: &param_proposal.summary,
+        body: &param_proposal.body,
+        dao_id: param_proposal.dao_id,
+        created: param_proposal.created,
+        duration: param_proposal.duration,
+        proposer_type: param_proposal.proposer_type,
+        adopt: param_proposal.adopt,
+        reject: param_proposal.reject,
+        status: param_proposal.status,
+    };
+
+    diesel::insert_into(proposals::table)
+        .values(&new_proposal)
+        .on_conflict(proposals::id)
+        .do_nothing()
+        .execute(conn)?;
+
+    Ok("Insert successfully!".to_string())
+}
+
+pub fn update_proposal_by_id(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_proposal: Proposals,
+    param_id: i64
+) -> Result<String, Error> {
+    use schema::proposals::dsl::*;
+
+    diesel::update(proposals.filter(id.eq(param_id)))
+        .set((
+            title.eq(&param_proposal.title),
+            proposer.eq(&param_proposal.proposer),
+            summary.eq(&param_proposal.summary),
+            body.eq(&param_proposal.body),
+            dao_id.eq(param_proposal.dao_id),
+            created.eq(param_proposal.created),
+            duration.eq(param_proposal.duration),
+            proposer_type.eq(param_proposal.proposer_type),
+            adopt.eq(param_proposal.adopt),
+            reject.eq(param_proposal.reject),
+            status.eq(param_proposal.status),
+        ))
+        .execute(conn).expect("Update: Error");
+
+    Ok("Update successfully!".to_string())
+}
+
+pub fn create_auto_increment(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_auto_increment: AutoIncrement,
+) -> Result<String, Error> {
+    use schema::auto_increment;
+
+    let new_auto_increment = NewAutoIncrement {
+        key: param_auto_increment.key,
+        value: param_auto_increment.value,
+    };
+
+    diesel::insert_into(auto_increment::table)
+        .values(&new_auto_increment)
+        .on_conflict(auto_increment::key)
+        .do_nothing()
+        .execute(conn)?;
+
+    Ok("Insert successfully!".to_string())
+}
+
+pub fn update_auto_increment(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_auto_increment: AutoIncrement,
+    param_key: i64,
+) -> Result<String, Error> {
+    use schema::auto_increment::dsl::*;
+
+    diesel::update(auto_increment.filter(key.eq(param_key)))
+        .set((
+            value.eq(param_auto_increment.value),
+        ))
+        .execute(conn).expect("Update: Error");
+
+    Ok("Update successfully!".to_string())
+}
+
+pub fn create_extend_pledge_period(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_extend_pledge_period: ExtendPledgePeriod,
+) -> Result<String, Error> {
+    use schema::extend_pledge_period;
+
+    let new_extend_pledge_period = NewExtendPledgePeriod {
+        key: param_extend_pledge_period.key,
+        value: param_extend_pledge_period.value,
+    };
+
+    diesel::insert_into(extend_pledge_period::table)
+        .values(&new_extend_pledge_period)
+        .on_conflict(extend_pledge_period::key)
+        .do_nothing()
+        .execute(conn)?;
+
+    Ok("Insert successfully!".to_string())
+}
+
+pub fn update_extend_pledge_period(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_extend_pledge_period: ExtendPledgePeriod,
+    param_key: i64,
+) -> Result<String, Error> {
+    use schema::extend_pledge_period::dsl::*;
+
+    diesel::update(extend_pledge_period.filter(key.eq(param_key)))
+        .set((
+            value.eq(param_extend_pledge_period.value),
+        ))
+        .execute(conn).expect("Update: Error");
+
+    Ok("Update successfully!".to_string())
 }
