@@ -264,6 +264,7 @@ pub struct NewAutoIncrement {
 #[diesel(table_name = balances)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Balances {
+    pub key: String,
     pub owner: String,
     pub amount: i64,
     pub token_info_id: i64,
@@ -272,6 +273,7 @@ pub struct Balances {
 #[derive(Insertable)]
 #[diesel(table_name = balances)]
 pub struct NewBalances<'a> {
+    pub key: &'a str,
     pub owner: &'a str,
     pub amount: i64,
     pub token_info_id: i64,
@@ -281,6 +283,7 @@ pub struct NewBalances<'a> {
 #[diesel(table_name = stake_amounts)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct StakeAmounts {
+    pub key: String,
     pub owner: String,
     pub amount: i64,
     pub token_info_id: i64,
@@ -289,6 +292,7 @@ pub struct StakeAmounts {
 #[derive(Insertable)]
 #[diesel(table_name = stake_amounts)]
 pub struct NewStakeAmounts<'a> {
+    pub key: &'a str,
     pub owner: &'a str,
     pub amount: i64,
     pub token_info_id: i64,

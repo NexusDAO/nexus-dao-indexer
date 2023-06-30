@@ -1,7 +1,7 @@
 use crate::{
     database::{
         create_profile, get_all_dao_ids, get_dao_by_id, get_dao_proposal_ids_by_dao_id,
-        get_profile_by_address, get_records_by_height, update_profile, POOL, insert_token_info
+        get_profile_by_address, get_records_by_height, update_profile, POOL, get_creating_dao_proposal_ids, insert_token_info, get_funds_total, get_stakes, get_pledgers_total, get_stake_funds_total,
     },
     models::{Daos, Output, Profiles, RespProfile, RespRecords, TokenInfos},
     schema::profiles::avatar,
@@ -11,6 +11,9 @@ use diesel::{r2d2::ConnectionManager, PgConnection};
 use r2d2::PooledConnection;
 use std::{collections::HashMap, default, str::FromStr};
 use diesel::row::NamedRow;
+use crate::database::get_balances;
+use crate::models::{Balances, StakeAmounts};
+use crate::schema::daos::dsl::daos;
 
 pub async fn records_handler(
     Query(params): Query<HashMap<String, String>>,
@@ -64,6 +67,165 @@ pub async fn get_profile_handler(Query(params): Query<HashMap<String, String>>) 
     Json(profiles)
 }
 
+pub async fn get_all_dao_ids_handler() -> Json<Vec<String>> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+
+    let dao_ids = get_all_dao_ids(&mut conn);
+    Json(dao_ids.unwrap())
+}
+
+pub async fn batch_get_dao_handler(
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<Vec<Daos>> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let mut ret_vec_dao: Vec<Daos> = Vec::new();
+    let id_array: Vec<String> = serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
+
+    for id in id_array {
+        let parsed_id = string_to_i64(&id);
+        let dao = get_dao_by_id(&mut conn, parsed_id);
+        match dao {
+            Ok(dao) => {
+                ret_vec_dao.push(dao);
+            }
+            Err(err) => {
+                let empty_dao = Daos {
+                    id: 0,
+                    name: "".to_string(),
+                    dao_type: 0,
+                    creater: "".to_string(),
+                    token_info_id: 0,
+                    icon: "".to_string(),
+                    description: "".to_string(),
+                    official_link: "".to_string(),
+                    proposal_count: 0,
+                    pass_proposal_count: 0,
+                    vote_count: 0,
+                    passed_votes_proportion: 0,
+                    passed_tokens_proportion: 0,
+                };
+
+                ret_vec_dao.push(empty_dao);
+            }
+        }
+    }
+    Json(ret_vec_dao)
+}
+
+pub async fn batch_get_governance_token_ids_handler(
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<Vec<String>> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let mut ret_token_ids: Vec<String> = Vec::new();
+    let id_array: Vec<String> = serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
+
+    for id in id_array {
+        let parsed_id = string_to_i64(&id);
+        let dao = get_dao_by_id(&mut conn, parsed_id);
+        match dao {
+            Ok(dao) => {
+                ret_token_ids.push(dao.token_info_id.to_string());
+            }
+            Err(err) => {
+                ret_token_ids.push("nil".to_string());
+            }
+        }
+    }
+    Json(ret_token_ids)
+}
+
+pub async fn batch_get_dao_proposal_ids_handler(
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<Vec<Vec<String>>> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let mut ret_proposal_ids: Vec<Vec<String>> = Vec::new();
+
+    let id_array: Vec<String> = serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
+
+    for id in id_array {
+        let parsed_id = string_to_i64(&id);
+        let proposal_ids = get_dao_proposal_ids_by_dao_id(&mut conn, parsed_id);
+        match proposal_ids {
+            Ok(ids) => {
+                ret_proposal_ids.push(ids)
+            }
+            Err(err) => {
+                let nil: Vec<String> = Vec::new();
+                ret_proposal_ids.push(nil)
+            }
+        }
+    }
+    Json(ret_proposal_ids)
+}
+
+pub async fn batch_get_balances_handler(
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<Vec<Balances>> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let address = params.get("address").unwrap();
+    let ret_blances = get_balances(&mut conn, address.to_string()).unwrap();
+
+    Json(ret_blances)
+}
+
+pub async fn batch_get_stakes_handler(
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<Vec<StakeAmounts>> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let address = params.get("address").unwrap();
+    let ret_stakes = get_stakes(&mut conn, address.to_string()).unwrap();
+
+    Json(ret_stakes)
+}
+
+pub async fn get_pledgers_total_handler() -> Json<String> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let ret_pledgers_total = get_pledgers_total(&mut conn).unwrap();
+    Json(ret_pledgers_total)
+}
+
+pub async fn get_stake_funds_total_handler() -> Json<String> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let ret_stake_funds_total = get_stake_funds_total(&mut conn).unwrap();
+    Json(ret_stake_funds_total)
+}
+
+pub async fn get_funds_total_handler() -> Json<String> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let ret_stake_funds_total = get_funds_total(&mut conn).unwrap();
+    Json(ret_stake_funds_total)
+}
+
+pub async fn get_creating_dao_proposal_ids_handler() -> Json<Vec<String>> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let prop_id = get_creating_dao_proposal_ids(&mut conn).unwrap();
+    Json(prop_id)
+}
+
+// pub async fn batch_get_proposals_handler(
+//     Query(params): Query<HashMap<String, String>>,
+// ) -> Json<String> {
+//     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+// }
+//
+// pub async fn get_all_proposal_ids_handler() -> Json<String> {
+//     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+// }
+
+
+
+pub fn string_to_i64(input: &String) -> i64 {
+    let parsed_id: Result<i64, _> = input.parse();
+    match parsed_id {
+        Ok(number) => {
+            return number;
+        }
+        Err(error) => {
+            panic!("Parsing error: {:?}", error);
+        }
+    }
+}
+
 pub async fn create_profile_handler(Query(params): Query<HashMap<String, String>>) -> Json<String> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
 
@@ -71,7 +233,7 @@ pub async fn create_profile_handler(Query(params): Query<HashMap<String, String>
     let names = params.get("name").unwrap().to_string();
     let avatars = params.get("avatar").unwrap().to_string();
     let bios = params.get("bio").unwrap().to_string();
-    let profile = Profiles{address: addr, name: names, avatar: avatars, bio: bios};
+    let profile = Profiles { address: addr, name: names, avatar: avatars, bio: bios };
 
     let status = create_profile(&mut conn, profile).unwrap();
     Json(status.to_string())
@@ -93,7 +255,7 @@ pub async fn create_token_info_handler(Query(params): Query<HashMap<String, Stri
         only_creator_can_mints = true;
     };
 
-    let token_info = TokenInfos{
+    let token_info = TokenInfos {
         id: string_to_i64(&id),
         name,
         symbol,
@@ -117,113 +279,10 @@ pub async fn update_profile_handler(Query(params): Query<HashMap<String, String>
     let names = params.get("name").unwrap().to_string();
     let avatars = params.get("avatar").unwrap().to_string();
     let bios = params.get("bio").unwrap().to_string();
-    let update_addr = params.get("updata_address").unwrap();
+    let update_addr = params.get("update_address").unwrap();
 
-    let profile = Profiles{address: addr, name: names, avatar: avatars, bio: bios};
+    let profile = Profiles { address: addr, name: names, avatar: avatars, bio: bios };
 
-    let status = update_profile(&mut conn, profile, update_addr).unwrap();
+    let status = update_profile(&mut conn, profile, update_addr.to_string()).unwrap();
     Json(status.to_string())
-}
-
-pub async fn get_all_dao_ids_handler() -> Json<Vec<String>> {
-    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
-
-    let dao_ids = get_all_dao_ids(&mut conn);
-    Json(dao_ids.unwrap())
-}
-
-pub async fn batch_get_dao_handler(
-    Query(params): Query<HashMap<String, Vec<String>>>,
-) -> Json<Vec<Daos>> {
-    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
-    let mut ret_vec_dao: Vec<Daos> = Vec::new();
-    let id_array = params.get("dao_id_array").unwrap();
-
-    for id in id_array {
-        let parsed_id = string_to_i64(id);
-        let dao = get_dao_by_id(&mut conn, parsed_id);
-        match dao {
-            Ok(dao) => {
-                ret_vec_dao.push(dao);
-            },
-            Err(err) =>{
-                println!("error of {}", err)
-            }
-        }
-    }
-    Json(ret_vec_dao)
-}
-
-pub async fn batch_get_governance_token_ids_handler(
-    Query(params): Query<HashMap<String, Vec<String>>>,
-) -> Json<Vec<String>> {
-    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
-    let mut ret_token_ids: Vec<String> = Vec::new();
-
-    let id_array = params.get("dao_id_array").unwrap();
-
-    for id in id_array {
-        let parsed_id = string_to_i64(id);
-        let dao = get_dao_by_id(&mut conn, parsed_id);
-        match dao {
-            Ok(dao) => {
-                ret_token_ids.push(dao.token_info_id.to_string());
-            },
-            Err(err) =>{
-                println!("error of {}", err)
-            }
-        }
-    }
-    Json(ret_token_ids)
-}
-
-pub async fn batch_get_dao_proposal_ids_handler(
-    Query(params): Query<HashMap<String, Vec<String>>>,
-) -> Json<Vec<Vec<String>>> {
-    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
-    let mut ret_proposal_ids: Vec<Vec<String>> = Vec::new();
-
-    let id_array = params.get("dao_id_array").unwrap();
-
-    for id in id_array {
-        let parsed_id = string_to_i64(id);
-        let proposal_ids = get_dao_proposal_ids_by_dao_id(&mut conn, parsed_id).unwrap();
-        ret_proposal_ids.push(proposal_ids)
-    }
-    Json(ret_proposal_ids)
-}
-
-// pub async fn create_dao_handler(
-//     Query(params): Query<HashMap<String, String>>,
-// ) -> Json<String> {
-//     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
-//     let dao_id = params.get("dao_id").unwrap();
-//     let dao_name = params.get("dao_name").unwrap();
-//     let dao_type = params.get("dao_type").unwrap();
-//     let dao_creater = params.get("dao_creater").unwrap();
-//     let dao_token_info_id = params.get("dao_token_info_id").unwrap();
-//     let dao_icon = params.get("dao_icon").unwrap();
-//     let dao_description = params.get("dao_description").unwrap();
-//     let dao_official_link = params.get("dao_official_link").unwrap();
-//     let dao_proposal_count = params.get("dao_proposal_count").unwrap();
-//     let dao_pass_proposal_count = params.get("dao_pass_proposal_count").unwrap();
-//     let dao_vote_count = params.get("dao_vote_count").unwrap();
-//     let dao_passed_votes_proportion = params.get("dao_passed_votes_proportion").unwrap();
-//     let dao_passed_tokens_proportion = params.get("dao_passed_tokens_proportion").unwrap();
-//
-//
-//     Json("OK".to_string())
-// }
-
-
-pub fn string_to_i64(input: &String) -> i64 {
-    let parsed_id: Result<i64, _> = input.parse();
-        match parsed_id {
-            Ok(number) => {
-                return number;
-            }
-            Err(error) => {
-                panic!("Parsing error: {:?}", error);
-            }
-        }
 }

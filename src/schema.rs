@@ -8,7 +8,8 @@ diesel::table! {
 }
 
 diesel::table! {
-    balances (owner) {
+    balances (key) {
+        key -> Text,
         owner -> Text,
         amount -> Int8,
         token_info_id -> Int8,
@@ -83,7 +84,8 @@ diesel::table! {
 }
 
 diesel::table! {
-    stake_amounts (owner) {
+    stake_amounts (key) {
+        key -> Text,
         owner -> Text,
         amount -> Int8,
         token_info_id -> Int8,
