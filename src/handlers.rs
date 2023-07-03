@@ -1,9 +1,10 @@
 use crate::{
     database::{
         create_profile, get_all_dao_ids, get_dao_by_id, get_dao_proposal_ids_by_dao_id,
-        get_profile_by_address, get_records_by_height, update_profile, POOL, get_creating_dao_proposal_ids, insert_token_info, get_funds_total, get_stakes, get_pledgers_total, get_stake_funds_total,
+        get_profile_by_address, get_records_by_height, get_all_proposal_ids, update_profile, POOL, get_proposals_by_proposal_id,
+        get_creating_dao_proposal_ids, insert_token_info, get_funds_total, get_stakes, get_pledgers_total, get_stake_funds_total,
     },
-    models::{Daos, Output, Profiles, RespProfile, RespRecords, TokenInfos},
+    models::{Daos, Output, Profiles, RespProfile, RespRecords, TokenInfos, Proposals},
     schema::profiles::avatar,
 };
 use axum::{extract::Query, response::Json};
@@ -202,15 +203,47 @@ pub async fn get_creating_dao_proposal_ids_handler() -> Json<Vec<String>> {
     Json(prop_id)
 }
 
-// pub async fn batch_get_proposals_handler(
-//     Query(params): Query<HashMap<String, String>>,
-// ) -> Json<String> {
-//     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
-// }
-//
-// pub async fn get_all_proposal_ids_handler() -> Json<String> {
-//     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
-// }
+pub async fn batch_get_proposals_handler(
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<Vec<Proposals>> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let mut ret_proposals: Vec<Proposals> = Vec::new();
+    let proposal_id_array: Vec<String> = serde_json::from_str(&params.get("proposal_id_array").unwrap().to_string()).unwrap();
+    for id in proposal_id_array {
+        let parse_id = string_to_i64(&id);
+        let proposal = get_proposals_by_proposal_id(&mut conn, parse_id);
+        match proposal {
+            Ok(proposal) => {
+                ret_proposals.push(proposal)
+            }
+            Err(err) => {
+                let empty_proposals = Proposals{
+                    id: 0,
+                    title: "".to_string(),
+                    proposer: "".to_string(),
+                    summary: "".to_string(),
+                    body: "".to_string(),
+                    dao_id: 0,
+                    created: 0,
+                    duration: 0,
+                    proposer_type: 0,
+                    adopt: 0,
+                    reject: 0,
+                    status: 0,
+                };
+                ret_proposals.push(empty_proposals)
+            }
+        }
+    }
+    Json(ret_proposals)
+}
+
+pub async fn get_all_proposal_ids_handler() -> Json<Vec<String>> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+
+    let ret_proposal_ids = get_all_proposal_ids(&mut conn).unwrap();
+    Json(ret_proposal_ids)
+}
 
 
 

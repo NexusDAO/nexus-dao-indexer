@@ -98,9 +98,9 @@ pub fn get_dao_proposal_ids_by_dao_id(
     use schema::proposals::dsl::*;
     let mut ret_proposal_ids: Vec<String> = Vec::new();
 
-    let prop: Vec<Proposals> = proposals
+    let prop: Vec<i64> = proposals
         .filter(dao_id.eq(param_id))
-        .select(Proposals::as_select())
+        .select(id)
         .load(conn)
         .expect("The proposal was not found");
 
@@ -109,7 +109,7 @@ pub fn get_dao_proposal_ids_by_dao_id(
     }
 
     for i in prop {
-        ret_proposal_ids.push(i.id.to_string())
+        ret_proposal_ids.push(i.to_string())
     }
 
     Ok(ret_proposal_ids)
@@ -201,16 +201,55 @@ pub fn get_creating_dao_proposal_ids(
 ) -> Result<Vec<String>, Error> {
     use schema::proposals::dsl::*;
     let mut ret_prop_id: Vec<String> = Vec::new();
-    let prop: Vec<Proposals> = proposals
+    let prop: Vec<i64> = proposals
         .filter(duration.eq(0).and(status.eq(0).or(status.eq(1))))
-        .select(Proposals::as_select())
+        .select(id)
         .load(conn)
         .expect("Error loading stakes");
 
     for i in prop {
-        ret_prop_id.push(i.id.to_string())
+        ret_prop_id.push(i.to_string())
     }
     Ok( ret_prop_id)
+}
+
+pub fn get_proposals_by_proposal_id(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_id: i64,
+) -> Result<Proposals, Error> {
+    use schema::proposals::dsl::*;
+
+    let mut prop: Vec<Proposals> = proposals
+        .filter(id.eq(param_id))
+        .select(Proposals::as_select())
+        .load(conn)
+        .expect("The proposal was not found");
+
+    if prop.is_empty() {
+        return Err(Error::msg("The proposal was not found"));
+    }
+
+    let ret_prop = prop.pop().unwrap();
+
+    Ok(ret_prop)
+}
+
+pub fn get_all_proposal_ids(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+) -> Result<Vec<String>, Error> {
+    use schema::proposals::dsl::*;
+    let mut ret_proposal_ids: Vec<String> = Vec::new();
+
+    let prop: Vec<i64> = proposals
+        .select(id)
+        .load(conn)
+        .expect("The proposal was not found");
+
+    for i in prop {
+        ret_proposal_ids.push(i.to_string())
+    }
+
+    Ok(ret_proposal_ids)
 }
 
 
