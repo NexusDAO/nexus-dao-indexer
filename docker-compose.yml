@@ -2,9 +2,9 @@ version: "3"
 services:
   postgres:
     container_name: postgres-nexus-dao-indexer
-    image: postgres:14
+    image: postgres:latest
     ports:
-      - "5432:5432"
+      - "5433:5432"
     command: ["postgres", "-cshared_preload_libraries=pg_stat_statements"]
     #command: ["postgres", "-cshared_preload_libraries=pg_stat_statements", "-clog_statement=all"]
     environment:
