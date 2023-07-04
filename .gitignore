@@ -1,5 +1,6 @@
 .vscode
 .envrc*
+.idea
 
 /data
 /target
