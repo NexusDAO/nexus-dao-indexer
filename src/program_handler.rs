@@ -2,7 +2,7 @@ use crate::{
     models::{Balances, Daos, ExtendPledgePeriod, Proposals, StakeAmounts, TokenInfos, Votes},
     proto::Records,
 };
-use anyhow::Error;
+use anyhow::{Error, Ok};
 use snarkvm::{prelude::*, utilities::ToBits};
 
 type CurrentNetwork = snarkvm::prelude::Testnet3;
@@ -33,12 +33,13 @@ fn fetch_mapping<T: for<'de> Deserialize<'de>>(
     mapping_name: &String,
     mapping_key: &String,
 ) -> Result<T, Error> {
-    ureq::get(&format!(
+    let response: T = ureq::get(&format!(
         "{rest_api}/testnet3/program/{program_id}/mapping/{mapping_name}/{mapping_key}"
     ))
     .call()?
-    .into_json()
-    .map_err(|e| e.into())
+    .into_json()?;
+
+    Ok(response)
 }
 
 pub fn program_handler(rest_api: &String, records: &Records) {
