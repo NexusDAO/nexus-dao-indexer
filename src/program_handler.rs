@@ -2,7 +2,7 @@ use crate::{
     models::{Balances, Daos, ExtendPledgePeriod, Proposals, StakeAmounts, TokenInfos, Votes},
     proto::Records,
 };
-use anyhow::{Error, Ok};
+use anyhow::Error;
 use snarkvm::{prelude::*, utilities::ToBits};
 
 type CurrentNetwork = snarkvm::prelude::Testnet3;
