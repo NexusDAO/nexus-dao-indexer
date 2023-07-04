@@ -1,22 +1,28 @@
 use anyhow::{Error, Ok};
 use clap::builder::Str;
-use diesel::{associations::HasTable, r2d2::{ConnectionManager, PoolError}, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper, BoolExpressionMethods, PgNetExpressionMethods};
+use diesel::{
+    associations::HasTable,
+    r2d2::{ConnectionManager, PoolError},
+    BoolExpressionMethods, ExpressionMethods, PgConnection, PgNetExpressionMethods, QueryDsl,
+    RunQueryDsl, SelectableHelper,
+};
+use futures03::StreamExt;
 use lazy_static::lazy_static;
 use r2d2::{Pool, PooledConnection};
-use std::env;
-use futures03::StreamExt;
 use r2d2_postgres::postgres::types::ToSql;
+use std::env;
 
-use crate::{
-    models::{
-        Daos, NewDaos, NewProfiles, NewProposals, NewToken, NewTokenInfos,
-        Profiles, Proposals, Record, Token, TokenInfos, AutoIncrement, NewAutoIncrement, Balances, NewBalances, StakeAmounts, NewStakeAmounts, ExtendPledgePeriod, NewExtendPledgePeriod,
-    },
-    schema::{self},
-};
 use crate::schema::balances::dsl::balances;
 use crate::schema::proposals::dsl::proposals;
 use crate::schema::stake_amounts::dsl::stake_amounts;
+use crate::{
+    models::{
+        AutoIncrement, Balances, Daos, ExtendPledgePeriod, NewAutoIncrement, NewBalances, NewDaos,
+        NewExtendPledgePeriod, NewProfiles, NewProposals, NewStakeAmounts, NewToken, NewTokenInfos,
+        Profiles, Proposals, Record, StakeAmounts, Token, TokenInfos,
+    },
+    schema::{self},
+};
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -175,7 +181,7 @@ pub fn get_stake_funds_total(
         count = count + i.amount
     }
 
-    Ok( count.to_string())
+    Ok(count.to_string())
 }
 
 pub fn get_funds_total(
@@ -193,7 +199,7 @@ pub fn get_funds_total(
         count = count + i.amount
     }
 
-    Ok( count.to_string())
+    Ok(count.to_string())
 }
 
 pub fn get_creating_dao_proposal_ids(
@@ -210,7 +216,7 @@ pub fn get_creating_dao_proposal_ids(
     for i in prop {
         ret_prop_id.push(i.to_string())
     }
-    Ok( ret_prop_id)
+    Ok(ret_prop_id)
 }
 
 pub fn get_proposals_by_proposal_id(
@@ -251,7 +257,6 @@ pub fn get_all_proposal_ids(
 
     Ok(ret_proposal_ids)
 }
-
 
 fn create_pg_pool() -> Result<PgPool, PoolError> {
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
@@ -298,7 +303,8 @@ pub fn update_token_by_owner(
             expires.eq(param_token.expires),
             staked_at.eq(param_token.staked_at),
         ))
-        .execute(conn).expect("Update: Error");
+        .execute(conn)
+        .expect("Update: Error");
 
     Ok("Update successfully!".to_string())
 }
@@ -348,7 +354,8 @@ pub fn update_token_info_by_id(
             dao_id.eq(param_token_info.dao_id),
             only_creator_can_mint.eq(param_token_info.only_creator_can_mint),
         ))
-        .execute(conn).expect("Update: Error");
+        .execute(conn)
+        .expect("Update: Error");
 
     Ok("Update successfully!".to_string())
 }
@@ -388,7 +395,8 @@ pub fn update_balances_by_key(
             amount.eq(param_balances.amount),
             token_info_id.eq(param_balances.token_info_id),
         ))
-        .execute(conn).expect("Update: Error");
+        .execute(conn)
+        .expect("Update: Error");
 
     Ok("Update successfully!".to_string())
 }
@@ -428,11 +436,11 @@ pub fn update_stake_amounts_by_key(
             amount.eq(param_stake_amounts.amount),
             token_info_id.eq(param_stake_amounts.token_info_id),
         ))
-        .execute(conn).expect("Update: Error");
+        .execute(conn)
+        .expect("Update: Error");
 
     Ok("Update successfully!".to_string())
 }
-
 
 pub fn create_profile(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
@@ -469,7 +477,8 @@ pub fn update_profile(
             avatar.eq(param_profile.avatar),
             bio.eq(param_profile.bio),
         ))
-        .execute(conn).expect("Update: Error");
+        .execute(conn)
+        .expect("Update: Error");
 
     Ok("Update successfully!".to_string())
 }
@@ -527,7 +536,8 @@ pub fn update_dao_by_id(
             passed_votes_proportion.eq(param_dao.passed_votes_proportion),
             passed_tokens_proportion.eq(param_dao.passed_tokens_proportion),
         ))
-        .execute(conn).expect("Update: Error");
+        .execute(conn)
+        .expect("Update: Error");
 
     Ok("Update successfully!".to_string())
 }
@@ -583,7 +593,8 @@ pub fn update_proposal_by_id(
             reject.eq(param_proposal.reject),
             status.eq(param_proposal.status),
         ))
-        .execute(conn).expect("Update: Error");
+        .execute(conn)
+        .expect("Update: Error");
 
     Ok("Update successfully!".to_string())
 }
@@ -616,10 +627,9 @@ pub fn update_auto_increment(
     use schema::auto_increment::dsl::*;
 
     diesel::update(auto_increment.filter(key.eq(param_key)))
-        .set((
-            value.eq(param_auto_increment.value),
-        ))
-        .execute(conn).expect("Update: Error");
+        .set((value.eq(param_auto_increment.value),))
+        .execute(conn)
+        .expect("Update: Error");
 
     Ok("Update successfully!".to_string())
 }
@@ -652,10 +662,9 @@ pub fn update_extend_pledge_period(
     use schema::extend_pledge_period::dsl::*;
 
     diesel::update(extend_pledge_period.filter(key.eq(param_key)))
-        .set((
-            value.eq(param_extend_pledge_period.value),
-        ))
-        .execute(conn).expect("Update: Error");
+        .set((value.eq(param_extend_pledge_period.value),))
+        .execute(conn)
+        .expect("Update: Error");
 
     Ok("Update successfully!".to_string())
 }

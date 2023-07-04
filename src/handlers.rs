@@ -1,20 +1,21 @@
-use crate::{
-    database::{
-        create_profile, get_all_dao_ids, get_dao_by_id, get_dao_proposal_ids_by_dao_id,
-        get_profile_by_address, get_records_by_height, get_all_proposal_ids, update_profile, POOL, get_proposals_by_proposal_id,
-        get_creating_dao_proposal_ids, insert_token_info, get_funds_total, get_stakes, get_pledgers_total, get_stake_funds_total,
-    },
-    models::{Daos, Output, Profiles, RespProfile, RespRecords, TokenInfos, Proposals},
-    schema::profiles::avatar,
-};
-use axum::{extract::Query, response::Json};
-use diesel::{r2d2::ConnectionManager, PgConnection};
-use r2d2::PooledConnection;
-use std::{collections::HashMap, default, str::FromStr};
-use diesel::row::NamedRow;
 use crate::database::get_balances;
 use crate::models::{Balances, StakeAmounts};
 use crate::schema::daos::dsl::daos;
+use crate::{
+    database::{
+        create_profile, get_all_dao_ids, get_all_proposal_ids, get_creating_dao_proposal_ids,
+        get_dao_by_id, get_dao_proposal_ids_by_dao_id, get_funds_total, get_pledgers_total,
+        get_profile_by_address, get_proposals_by_proposal_id, get_records_by_height,
+        get_stake_funds_total, get_stakes, insert_token_info, update_profile, POOL,
+    },
+    models::{Daos, Output, Profiles, Proposals, RespProfile, RespRecords, TokenInfos},
+    schema::profiles::avatar,
+};
+use axum::{extract::Query, response::Json};
+use diesel::row::NamedRow;
+use diesel::{r2d2::ConnectionManager, PgConnection};
+use r2d2::PooledConnection;
+use std::{collections::HashMap, default, str::FromStr};
 
 pub async fn records_handler(
     Query(params): Query<HashMap<String, String>>,
@@ -80,7 +81,8 @@ pub async fn batch_get_dao_handler(
 ) -> Json<Vec<Daos>> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
     let mut ret_vec_dao: Vec<Daos> = Vec::new();
-    let id_array: Vec<String> = serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
+    let id_array: Vec<String> =
+        serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
 
     for id in id_array {
         let parsed_id = string_to_i64(&id);
@@ -118,7 +120,8 @@ pub async fn batch_get_governance_token_ids_handler(
 ) -> Json<Vec<String>> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
     let mut ret_token_ids: Vec<String> = Vec::new();
-    let id_array: Vec<String> = serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
+    let id_array: Vec<String> =
+        serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
 
     for id in id_array {
         let parsed_id = string_to_i64(&id);
@@ -141,15 +144,14 @@ pub async fn batch_get_dao_proposal_ids_handler(
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
     let mut ret_proposal_ids: Vec<Vec<String>> = Vec::new();
 
-    let id_array: Vec<String> = serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
+    let id_array: Vec<String> =
+        serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
 
     for id in id_array {
         let parsed_id = string_to_i64(&id);
         let proposal_ids = get_dao_proposal_ids_by_dao_id(&mut conn, parsed_id);
         match proposal_ids {
-            Ok(ids) => {
-                ret_proposal_ids.push(ids)
-            }
+            Ok(ids) => ret_proposal_ids.push(ids),
             Err(err) => {
                 let nil: Vec<String> = Vec::new();
                 ret_proposal_ids.push(nil)
@@ -208,16 +210,15 @@ pub async fn batch_get_proposals_handler(
 ) -> Json<Vec<Proposals>> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
     let mut ret_proposals: Vec<Proposals> = Vec::new();
-    let proposal_id_array: Vec<String> = serde_json::from_str(&params.get("proposal_id_array").unwrap().to_string()).unwrap();
+    let proposal_id_array: Vec<String> =
+        serde_json::from_str(&params.get("proposal_id_array").unwrap().to_string()).unwrap();
     for id in proposal_id_array {
         let parse_id = string_to_i64(&id);
         let proposal = get_proposals_by_proposal_id(&mut conn, parse_id);
         match proposal {
-            Ok(proposal) => {
-                ret_proposals.push(proposal)
-            }
+            Ok(proposal) => ret_proposals.push(proposal),
             Err(err) => {
-                let empty_proposals = Proposals{
+                let empty_proposals = Proposals {
                     id: 0,
                     title: "".to_string(),
                     proposer: "".to_string(),
@@ -245,8 +246,6 @@ pub async fn get_all_proposal_ids_handler() -> Json<Vec<String>> {
     Json(ret_proposal_ids)
 }
 
-
-
 pub fn string_to_i64(input: &String) -> i64 {
     let parsed_id: Result<i64, _> = input.parse();
     match parsed_id {
@@ -266,13 +265,20 @@ pub async fn create_profile_handler(Query(params): Query<HashMap<String, String>
     let names = params.get("name").unwrap().to_string();
     let avatars = params.get("avatar").unwrap().to_string();
     let bios = params.get("bio").unwrap().to_string();
-    let profile = Profiles { address: addr, name: names, avatar: avatars, bio: bios };
+    let profile = Profiles {
+        address: addr,
+        name: names,
+        avatar: avatars,
+        bio: bios,
+    };
 
     let status = create_profile(&mut conn, profile).unwrap();
     Json(status.to_string())
 }
 
-pub async fn create_token_info_handler(Query(params): Query<HashMap<String, String>>) -> Json<String> {
+pub async fn create_token_info_handler(
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<String> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
 
     let id = params.get("id").unwrap().to_string();
@@ -304,7 +310,6 @@ pub async fn create_token_info_handler(Query(params): Query<HashMap<String, Stri
     Json(status.to_string())
 }
 
-
 pub async fn update_profile_handler(Query(params): Query<HashMap<String, String>>) -> Json<String> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
 
@@ -314,7 +319,12 @@ pub async fn update_profile_handler(Query(params): Query<HashMap<String, String>
     let bios = params.get("bio").unwrap().to_string();
     let update_addr = params.get("update_address").unwrap();
 
-    let profile = Profiles { address: addr, name: names, avatar: avatars, bio: bios };
+    let profile = Profiles {
+        address: addr,
+        name: names,
+        avatar: avatars,
+        bio: bios,
+    };
 
     let status = update_profile(&mut conn, profile, update_addr.to_string()).unwrap();
     Json(status.to_string())

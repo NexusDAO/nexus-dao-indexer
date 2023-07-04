@@ -1,14 +1,14 @@
-use super::schema::record;
-use super::schema::token;
 use super::schema::auto_increment;
-use super::schema::profiles;
-use super::schema::daos;
-use super::schema::token_infos;
 use super::schema::balances;
-use super::schema::stake_amounts;
-use super::schema::proposals;
-use super::schema::votes;
+use super::schema::daos;
 use super::schema::extend_pledge_period;
+use super::schema::profiles;
+use super::schema::proposals;
+use super::schema::record;
+use super::schema::stake_amounts;
+use super::schema::token;
+use super::schema::token_infos;
+use super::schema::votes;
 use diesel::{prelude::*, Queryable};
 use serde::{Deserialize, Serialize};
 
@@ -69,7 +69,6 @@ pub struct RespRecords {
     pub height: i64,
     pub timestamp: i64,
 }
-
 
 #[derive(Queryable, Selectable, Deserialize, Serialize)]
 #[diesel(table_name = profiles)]
@@ -154,7 +153,7 @@ pub struct Daos {
     pub proposal_count: i64,
     pub pass_proposal_count: i64,
     pub vote_count: i64,
-    pub passed_votes_proportion: i64,  
+    pub passed_votes_proportion: i64,
     pub passed_tokens_proportion: i64,
 }
 
@@ -172,7 +171,7 @@ pub struct NewDaos<'a> {
     pub proposal_count: i64,
     pub pass_proposal_count: i64,
     pub vote_count: i64,
-    pub passed_votes_proportion: i64,  
+    pub passed_votes_proportion: i64,
     pub passed_tokens_proportion: i64,
 }
 
@@ -185,7 +184,7 @@ pub struct Token {
     pub token_info_id: i64,
     pub amount: i64,
     pub expires: i64,
-    pub staked_at: i64, 
+    pub staked_at: i64,
 }
 
 #[derive(Insertable)]
@@ -196,7 +195,7 @@ pub struct NewToken<'a> {
     pub token_info_id: i64,
     pub amount: i64,
     pub expires: i64,
-    pub staked_at: i64, 
+    pub staked_at: i64,
 }
 
 #[derive(Queryable, Selectable, Deserialize, Serialize)]
@@ -242,7 +241,6 @@ pub struct Votes {
     pub proposal_id: i64,
     pub token_id: i64,
     pub is_agreed: bool,
-
 }
 
 #[derive(Queryable, Selectable, Deserialize, Serialize)]
