@@ -31,6 +31,10 @@ pub enum Commands {
         /// Start block to stream from
         #[arg(short = 't', long, default_value_t = u64::MAX)]
         end_block: u64,
+
+        /// Aleo REST API
+        #[arg(short, long)]
+        rest_api: String,
     },
     /// Start query service.
     Serve {
@@ -41,6 +45,10 @@ pub enum Commands {
         /// Host ip to listen on
         #[arg(short = 'H', long, default_value_t = String::from("127.0.0.1"))]
         host: String,
+
+        /// Aleo REST API
+        #[arg(short, long)]
+        rest_api: String,
     },
 
     /// Start both `sync` and `serve` services simultaneously
@@ -72,5 +80,9 @@ pub enum Commands {
         /// Host ip to listen on
         #[arg(short = 'H', long, default_value_t = String::from("127.0.0.1"))]
         host: String,
+
+        /// Aleo REST API
+        #[arg(short, long)]
+        rest_api: String,
     },
 }

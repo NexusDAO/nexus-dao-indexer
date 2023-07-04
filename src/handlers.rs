@@ -1,4 +1,7 @@
-use crate::database::get_balances;
+use crate::{
+    database::{get_balances, get_records_by_height, POOL},
+    models::{Input, Output, RespRecords},
+};
 use crate::models::{Balances, StakeAmounts};
 use crate::schema::daos::dsl::daos;
 use crate::{
@@ -33,12 +36,13 @@ pub async fn records_handler(
     let results = records
         .iter()
         .map(|record| {
+            let inputs: Vec<Input> = serde_json::from_str(&record.inputs).unwrap();
             let outputs: Vec<Output> = serde_json::from_str(&record.outputs).unwrap();
             let record_values = outputs
-                .into_iter()
+                .iter()
                 .filter_map(|output| {
                     if output.r#type.eq("record") {
-                        Some(output.value)
+                        Some(output.value.clone())
                     } else {
                         None
                     }
@@ -52,6 +56,8 @@ pub async fn records_handler(
                 network: record.network,
                 height: record.height,
                 timestamp: record.timestamp,
+                inputs: inputs,
+                outputs: outputs,
             }
         })
         .collect::<Vec<RespRecords>>();

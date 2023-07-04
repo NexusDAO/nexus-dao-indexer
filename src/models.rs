@@ -68,6 +68,8 @@ pub struct RespRecords {
     pub network: i64,
     pub height: i64,
     pub timestamp: i64,
+    pub inputs: Vec<Input>,
+    pub outputs: Vec<Output>,
 }
 
 #[derive(Queryable, Selectable, Deserialize, Serialize)]
