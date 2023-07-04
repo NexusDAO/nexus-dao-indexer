@@ -2,6 +2,7 @@ extern crate diesel;
 
 use crate::{
     models::{Input, NewRecord, Output},
+    program_handler::program_handler,
     routes::routes,
 };
 use anyhow::{format_err, Context, Error};
@@ -23,6 +24,7 @@ mod cli;
 mod database;
 mod handlers;
 mod models;
+mod program_handler;
 mod proto;
 mod routes;
 mod schema;
@@ -35,6 +37,7 @@ async fn main() {
 
     match &cli.command {
         Some(Commands::Sync {
+            rest_api,
             endpoint_url,
             package_file,
             module_name,
@@ -42,6 +45,7 @@ async fn main() {
             end_block,
         }) => {
             sync(
+                rest_api,
                 endpoint_url,
                 package_file,
                 module_name,
@@ -51,11 +55,16 @@ async fn main() {
             .await;
         }
 
-        Some(Commands::Serve { port, host }) => {
-            serve(host, port).await;
+        Some(Commands::Serve {
+            rest_api,
+            port,
+            host,
+        }) => {
+            serve(rest_api, host, port).await;
         }
 
         Some(Commands::All {
+            rest_api,
             endpoint_url,
             package_file,
             module_name,
@@ -66,13 +75,14 @@ async fn main() {
         }) => {
             tokio::join!(
                 sync(
+                    rest_api,
                     endpoint_url,
                     package_file,
                     module_name,
                     start_block,
                     end_block,
                 ),
-                serve(host, port),
+                serve(rest_api, host, port),
             );
         }
 
@@ -81,6 +91,7 @@ async fn main() {
 }
 
 async fn sync(
+    rest_api: &String,
     endpoint_url: &String,
     package_file: &String,
     module_name: &String,
@@ -124,10 +135,12 @@ async fn sync(
                     println!("Consuming module output (cursor {})", data.cursor);
 
                     match extract_records(data, &module_name).unwrap() {
-                        Some(record) => {
-                            batch_insert_records(&mut conn, &record)
+                        Some(records) => {
+                            batch_insert_records(&mut conn, &records)
                                 .context("insertion in db failed")
                                 .unwrap();
+
+                            program_handler(rest_api, &records);
                         }
                         None => {}
                     }
@@ -144,7 +157,7 @@ async fn sync(
     }
 }
 
-async fn serve(host: &String, port: &u16) {
+async fn serve(rest_api: &String, host: &String, port: &u16) {
     let app = routes().layer(
         CorsLayer::new()
             .allow_methods([Method::GET])

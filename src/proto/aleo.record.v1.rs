@@ -13,19 +13,21 @@ pub struct Record {
     pub inputs: ::prost::alloc::vec::Vec<Input>,
     #[prost(message, repeated, tag="4")]
     pub outputs: ::prost::alloc::vec::Vec<Output>,
-    #[prost(string, tag="5")]
-    pub block_hash: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag="5")]
+    pub finalize: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, tag="6")]
-    pub previous_hash: ::prost::alloc::string::String,
+    pub block_hash: ::prost::alloc::string::String,
     #[prost(string, tag="7")]
-    pub transaction_id: ::prost::alloc::string::String,
+    pub previous_hash: ::prost::alloc::string::String,
     #[prost(string, tag="8")]
+    pub transaction_id: ::prost::alloc::string::String,
+    #[prost(string, tag="9")]
     pub transition_id: ::prost::alloc::string::String,
-    #[prost(uint32, tag="9")]
-    pub network: u32,
     #[prost(uint32, tag="10")]
+    pub network: u32,
+    #[prost(uint32, tag="11")]
     pub height: u32,
-    #[prost(int64, tag="11")]
+    #[prost(int64, tag="12")]
     pub timestamp: i64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
