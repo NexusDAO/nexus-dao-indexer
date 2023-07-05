@@ -1,17 +1,13 @@
-use crate::{
-    database::{get_balances, get_records_by_height, POOL},
-    models::{Input, Output, RespRecords},
-};
 use crate::models::{Balances, StakeAmounts};
 use crate::schema::daos::dsl::daos;
 use crate::{
     database::{
-        create_profile, get_all_dao_ids, get_all_proposal_ids, get_creating_dao_proposal_ids,
-        get_dao_by_id, get_dao_proposal_ids_by_dao_id, get_funds_total, get_pledgers_total,
+        insert_profile, upsert_profile, get_all_dao_ids, get_all_proposal_ids, get_creating_dao_proposal_ids,
+        get_dao_by_id, get_dao_proposal_ids_by_dao_id, get_funds_total, get_pledgers_total, get_balances_by_key,
         get_profile_by_address, get_proposals_by_proposal_id, get_records_by_height,
-        get_stake_funds_total, get_stakes, insert_token_info, update_profile, POOL,
+        get_stake_funds_total, get_stakes_by_key, insert_token_info, update_profile, POOL,
     },
-    models::{Daos, Output, Profiles, Proposals, RespProfile, RespRecords, TokenInfos},
+    models::{Input, Daos, Output, Profiles, Proposals, RespProfile, RespRecords, TokenInfos},
     schema::profiles::avatar,
 };
 use axum::{extract::Query, response::Json};
@@ -19,6 +15,7 @@ use diesel::row::NamedRow;
 use diesel::{r2d2::ConnectionManager, PgConnection};
 use r2d2::PooledConnection;
 use std::{collections::HashMap, default, str::FromStr};
+use snarkvm::circuit::IntegerProperties;
 
 pub async fn records_handler(
     Query(params): Query<HashMap<String, String>>,
@@ -171,8 +168,8 @@ pub async fn batch_get_balances_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> Json<Vec<Balances>> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
-    let address = params.get("address").unwrap();
-    let ret_blances = get_balances(&mut conn, address.to_string()).unwrap();
+    let key = params.get("key").unwrap();
+    let ret_blances = get_balances_by_key(&mut conn, key.to_string()).unwrap();
 
     Json(ret_blances)
 }
@@ -181,8 +178,8 @@ pub async fn batch_get_stakes_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> Json<Vec<StakeAmounts>> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
-    let address = params.get("address").unwrap();
-    let ret_stakes = get_stakes(&mut conn, address.to_string()).unwrap();
+    let key = params.get("key").unwrap();
+    let ret_stakes = get_stakes_by_key(&mut conn, key.to_string()).unwrap();
 
     Json(ret_stakes)
 }
@@ -278,7 +275,7 @@ pub async fn create_profile_handler(Query(params): Query<HashMap<String, String>
         bio: bios,
     };
 
-    let status = create_profile(&mut conn, profile).unwrap();
+    let status = insert_profile(&mut conn, profile).unwrap();
     Json(status.to_string())
 }
 
@@ -323,7 +320,6 @@ pub async fn update_profile_handler(Query(params): Query<HashMap<String, String>
     let names = params.get("name").unwrap().to_string();
     let avatars = params.get("avatar").unwrap().to_string();
     let bios = params.get("bio").unwrap().to_string();
-    let update_addr = params.get("update_address").unwrap();
 
     let profile = Profiles {
         address: addr,
@@ -332,6 +328,25 @@ pub async fn update_profile_handler(Query(params): Query<HashMap<String, String>
         bio: bios,
     };
 
-    let status = update_profile(&mut conn, profile, update_addr.to_string()).unwrap();
+    let status = update_profile(&mut conn, profile).unwrap();
+    Json(status.to_string())
+}
+
+pub async fn upsert_profile_handler(Query(params): Query<HashMap<String, String>>) -> Json<String> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+
+    let addr = params.get("address").unwrap().to_string();
+    let names = params.get("name").unwrap().to_string();
+    let avatars = params.get("avatar").unwrap().to_string();
+    let bios = params.get("bio").unwrap().to_string();
+
+    let profile = Profiles {
+        address: addr,
+        name: names,
+        avatar: avatars,
+        bio: bios,
+    };
+
+    let status = upsert_profile(&mut conn, profile).unwrap();
     Json(status.to_string())
 }
