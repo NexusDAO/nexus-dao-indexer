@@ -1,25 +1,6 @@
-use anyhow::{Error, Ok};
-use clap::builder::Str;
-use diesel::{
-    associations::HasTable,
-    r2d2::{ConnectionManager, PoolError},
-    update, BoolExpressionMethods, ExpressionMethods, PgConnection, PgNetExpressionMethods,
-    QueryDsl, RunQueryDsl, SelectableHelper,
-};
-use futures03::StreamExt;
-use lazy_static::lazy_static;
-use r2d2::{Pool, PooledConnection};
-use r2d2_postgres::postgres::types::ToSql;
-use std::env;
-
 use crate::models::{NewVotes, Votes};
-use crate::schema::auto_increment::dsl::auto_increment;
 use crate::schema::balances::dsl::balances;
 use crate::schema::balances::key;
-use crate::schema::profiles::dsl::profiles;
-use crate::schema::proposals::dsl::proposals;
-use crate::schema::stake_amounts::dsl::stake_amounts;
-use crate::schema::votes::dsl::votes;
 use crate::{
     models::{
         AutoIncrement, Balances, Daos, ExtendPledgePeriod, NewAutoIncrement, NewBalances, NewDaos,
@@ -28,6 +9,15 @@ use crate::{
     },
     schema::{self},
 };
+use anyhow::{Error, Ok};
+use diesel::{
+    r2d2::{ConnectionManager, PoolError},
+    BoolExpressionMethods, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl,
+    SelectableHelper,
+};
+use lazy_static::lazy_static;
+use r2d2::{Pool, PooledConnection};
+use std::env;
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 

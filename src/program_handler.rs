@@ -1,7 +1,8 @@
 use crate::{
     database::{
-        create_dao, create_extend_pledge_period, create_proposal, insert_balances,
-        insert_token_info, update_auto_increment, update_dao, update_token, upsert_balances, upsert_stake_amounts, update_stake_amounts, update_token_info, upsert_profile, upsert_auto_increment, update_proposal,
+        create_dao, create_extend_pledge_period, create_proposal, insert_token_info, insert_votes,
+        update_dao, update_proposal, update_stake_amounts, update_token_info,
+        upsert_auto_increment, upsert_balances, upsert_profile, upsert_stake_amounts,
     },
     mapping_struct::{Dao, HoldToken, Profile, Proposal, TokenInfo, Vote},
     models,
@@ -774,9 +775,10 @@ pub fn program_handler(
                         continue;
                     }
                 };
-                upsert_vote(
+                insert_votes(
                     conn,
                     models::Votes {
+                        key: votes_mapping_key.to_string(),
                         voter: vote.voter,
                         proposal_id: vote.proposal_id as i64,
                         is_agreed: vote.is_agreed,

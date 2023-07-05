@@ -1,4 +1,3 @@
-use crate::database::{get_balances_by_key, get_stakes_by_key, insert_profile, upsert_profile};
 use crate::models::{Balances, StakeAmounts};
 use crate::{
     database::{
@@ -8,14 +7,12 @@ use crate::{
         get_stake_funds_total, get_stakes_by_key, insert_profile, insert_token_info,
         update_profile, upsert_profile, POOL,
     },
-    models::{Daos, Input, Output, Profiles, Proposals, RespProfile, RespRecords, TokenInfos},
-    schema::profiles::avatar,
+    models::{Daos, Input, Output, Profiles, Proposals, RespRecords, TokenInfos},
 };
 use axum::{extract::Query, response::Json};
 use diesel::{r2d2::ConnectionManager, PgConnection};
 use r2d2::PooledConnection;
-use snarkvm::circuit::IntegerProperties;
-use std::{collections::HashMap, default, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
 pub async fn records_handler(
     Query(params): Query<HashMap<String, String>>,

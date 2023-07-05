@@ -6,7 +6,6 @@ use crate::handlers::{
     get_pledgers_total_handler, get_profile_handler, get_stake_funds_total_handler,
     records_handler, update_profile_handler, upsert_profile_handler,
 };
-use axum::routing::post;
 use axum::{routing::get, Router};
 
 pub fn routes() -> Router {
