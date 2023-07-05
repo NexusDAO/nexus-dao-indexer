@@ -1,11 +1,6 @@
 use anyhow::{Error, Ok};
 use clap::builder::Str;
-use diesel::{
-    associations::HasTable,
-    r2d2::{ConnectionManager, PoolError},
-    BoolExpressionMethods, ExpressionMethods, PgConnection, PgNetExpressionMethods, QueryDsl,
-    RunQueryDsl, SelectableHelper,
-};
+use diesel::{associations::HasTable, r2d2::{ConnectionManager, PoolError}, BoolExpressionMethods, ExpressionMethods, PgConnection, PgNetExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper, update};
 use futures03::StreamExt;
 use lazy_static::lazy_static;
 use r2d2::{Pool, PooledConnection};
@@ -23,6 +18,8 @@ use crate::{
     },
     schema::{self},
 };
+use crate::schema::balances::key;
+use crate::schema::profiles::dsl::profiles;
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -121,14 +118,14 @@ pub fn get_dao_proposal_ids_by_dao_id(
     Ok(ret_proposal_ids)
 }
 
-pub fn get_balances(
+pub fn get_balances_by_key(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    param_address: String,
+    param_key: String,
 ) -> Result<Vec<Balances>, Error> {
     use schema::balances::dsl::*;
 
     let ret_balances: Vec<Balances> = balances
-        .filter(owner.eq(param_address))
+        .filter(key.eq(param_key))
         .select(Balances::as_select())
         .load(conn)
         .expect("Error loading balances");
@@ -136,14 +133,14 @@ pub fn get_balances(
     Ok(ret_balances)
 }
 
-pub fn get_stakes(
+pub fn get_stakes_by_key(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    param_address: String,
+    param_key: String,
 ) -> Result<Vec<StakeAmounts>, Error> {
     use schema::stake_amounts::dsl::*;
 
     let ret_stakes: Vec<StakeAmounts> = stake_amounts
-        .filter(owner.eq(param_address))
+        .filter(key.eq(param_key))
         .select(StakeAmounts::as_select())
         .load(conn)
         .expect("Error loading balances");
@@ -288,14 +285,13 @@ pub fn insert_token(
     Ok("Insert successfully!".to_string())
 }
 
-pub fn update_token_by_owner(
+pub fn update_token(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_token: Token,
-    param_owner: String,
 ) -> Result<String, Error> {
     use schema::token::dsl::*;
 
-    diesel::update(token.filter(owner.eq(param_owner)))
+    diesel::update(token.filter(owner.eq(param_token.owner)))
         .set((
             gates.eq(param_token.gates),
             token_info_id.eq(param_token.token_info_id),
@@ -336,14 +332,33 @@ pub fn insert_token_info(
     Ok("Insert successfully!".to_string())
 }
 
-pub fn update_token_info_by_id(
+pub fn upsert_token_info(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_token_info: TokenInfos,
-    param_id: i64,
+) -> Result<String, Error> {
+    use schema::token_infos::dsl::*;
+    let param_id = param_token_info.id.clone();
+
+    let get_token_infos: Vec<TokenInfos> = token_infos
+        .filter(id.eq(param_id))
+        .select(TokenInfos::as_select())
+        .load(conn)
+        .expect("");
+
+    if get_token_infos.is_empty() {
+        insert_token_info(conn, param_token_info)
+    } else {
+        update_token_info(conn, param_token_info)
+    }
+}
+
+pub fn update_token_info(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_token_info: TokenInfos,
 ) -> Result<String, Error> {
     use schema::token_infos::dsl::*;
 
-    diesel::update(token_infos.filter(id.eq(param_id)))
+    diesel::update(token_infos.filter(id.eq(param_token_info.id)))
         .set((
             name.eq(&param_token_info.name),
             symbol.eq(&param_token_info.symbol),
@@ -382,14 +397,33 @@ pub fn insert_balances(
     Ok("Insert successfully!".to_string())
 }
 
-pub fn update_balances_by_key(
+pub fn upsert_balances(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_balances: Balances,
-    param_key: String,
+) -> Result<String, Error> {
+    use schema::balances;
+    let param_key = param_balances.key.clone();
+
+    let get_balances: Vec<Balances> = balances
+        .filter(key.eq(param_key))
+        .select(Balances::as_select())
+        .load(conn)
+        .expect("");
+
+    if get_balances.is_empty() {
+        insert_balances(conn, param_balances)
+    } else {
+        update_balances(conn, param_balances)
+    }
+}
+
+pub fn update_balances(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_balances: Balances,
 ) -> Result<String, Error> {
     use schema::balances::dsl::*;
 
-    diesel::update(balances.filter(key.eq(param_key)))
+    diesel::update(balances.filter(key.eq(param_balances.key)))
         .set((
             owner.eq(param_balances.owner),
             amount.eq(param_balances.amount),
@@ -423,14 +457,33 @@ pub fn insert_stake_amounts(
     Ok("Insert successfully!".to_string())
 }
 
-pub fn update_stake_amounts_by_key(
+pub fn upsert_stake_amounts(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_stake_amounts: StakeAmounts,
-    param_key: String,
+) -> Result<String, Error> {
+    use schema::stake_amounts::dsl::*;
+    let param_key = param_stake_amounts.key.clone();
+
+    let get_stake_amounts: Vec<StakeAmounts> = stake_amounts
+        .filter(key.eq(param_key))
+        .select(StakeAmounts::as_select())
+        .load(conn)
+        .expect("");
+
+    if get_stake_amounts.is_empty() {
+        insert_stake_amounts(conn, param_stake_amounts)
+    } else {
+        update_stake_amounts(conn, param_stake_amounts)
+    }
+}
+
+pub fn update_stake_amounts(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_stake_amounts: StakeAmounts,
 ) -> Result<String, Error> {
     use schema::stake_amounts::dsl::*;
 
-    diesel::update(stake_amounts.filter(key.eq(param_key)))
+    diesel::update(stake_amounts.filter(key.eq(param_stake_amounts.key)))
         .set((
             owner.eq(param_stake_amounts.owner),
             amount.eq(param_stake_amounts.amount),
@@ -442,7 +495,7 @@ pub fn update_stake_amounts_by_key(
     Ok("Update successfully!".to_string())
 }
 
-pub fn create_profile(
+pub fn insert_profile(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_profile: Profiles,
 ) -> Result<String, Error> {
@@ -464,14 +517,32 @@ pub fn create_profile(
     Ok("Insert successfully!".to_string())
 }
 
+pub fn upsert_profile(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_profile: Profiles,
+) -> Result<String, Error> {
+    use schema::profiles::dsl::*;
+    let addr = param_profile.address.clone();
+    let get_profiles: Vec<Profiles> = profiles
+        .filter(address.eq(addr))
+        .select(Profiles::as_select())
+        .load(conn)
+        .expect("");
+
+    if get_profiles.is_empty() {
+        insert_profile(conn, param_profile)
+    } else {
+        update_profile(conn, param_profile)
+    }
+}
+
 pub fn update_profile(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_profile: Profiles,
-    param_addr: String,
 ) -> Result<String, Error> {
     use schema::profiles::dsl::*;
 
-    diesel::update(profiles.filter(address.eq(param_addr)))
+    diesel::update(profiles.filter(address.eq(param_profile.address)))
         .set((
             name.eq(param_profile.name),
             avatar.eq(param_profile.avatar),
@@ -514,14 +585,33 @@ pub fn create_dao(
     Ok("Insert successfully!".to_string())
 }
 
-pub fn update_dao_by_id(
+pub fn upsert_dao(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_dao: Daos,
-    param_id: i64,
+) -> Result<String, Error> {
+    use schema::daos::dsl::*;
+    let param_id = param_dao.id.clone();
+
+    let get_daos: Vec<Daos> = daos
+        .filter(id.eq(param_id))
+        .select(Daos::as_select())
+        .load(conn)
+        .expect("");
+
+    if get_daos.is_empty() {
+        create_dao(conn, param_dao)
+    } else {
+        update_dao(conn, param_dao)
+    }
+}
+
+pub fn update_dao(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_dao: Daos,
 ) -> Result<String, Error> {
     use schema::daos::dsl::*;
 
-    diesel::update(daos.filter(id.eq(param_id)))
+    diesel::update(daos.filter(id.eq(param_dao.id)))
         .set((
             name.eq(param_dao.name),
             dao_type.eq(param_dao.dao_type),
@@ -572,14 +662,34 @@ pub fn create_proposal(
     Ok("Insert successfully!".to_string())
 }
 
-pub fn update_proposal_by_id(
+pub fn upsert_proposal(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_proposal: Proposals,
-    param_id: i64,
 ) -> Result<String, Error> {
     use schema::proposals::dsl::*;
 
-    diesel::update(proposals.filter(id.eq(param_id)))
+    let param_id = param_proposal.id.clone();
+
+    let get_proposal: Vec<Proposals> = proposals
+        .filter(id.eq(param_id))
+        .select(Proposals::as_select())
+        .load(conn)
+        .expect("");
+
+    if get_proposal.is_empty() {
+        create_proposal(conn, param_proposal)
+    } else {
+        update_proposal(conn, param_proposal)
+    }
+}
+
+pub fn update_proposal(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_proposal: Proposals,
+) -> Result<String, Error> {
+    use schema::proposals::dsl::*;
+
+    diesel::update(proposals.filter(id.eq(param_proposal.id)))
         .set((
             title.eq(param_proposal.title),
             proposer.eq(param_proposal.proposer),
@@ -619,15 +729,34 @@ pub fn create_auto_increment(
     Ok("Insert successfully!".to_string())
 }
 
+pub fn upsert_auto_increment(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_auto_increment: AutoIncrement,
+) -> Result<String, Error> {
+    use schema::auto_increment::dsl::*;
+    let param_key = param_auto_increment.key.clone();
+
+    let get_auto_increment: Vec<AutoIncrement> = auto_increment
+        .filter(key.eq(param_key))
+        .select(AutoIncrement::as_select())
+        .load(conn)
+        .expect("");
+
+    if get_auto_increment.is_empty() {
+        create_auto_increment(conn, param_auto_increment)
+    } else {
+        update_auto_increment(conn, param_auto_increment)
+    }
+}
+
 pub fn update_auto_increment(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_auto_increment: AutoIncrement,
-    param_key: i64,
 ) -> Result<String, Error> {
     use schema::auto_increment::dsl::*;
 
-    diesel::update(auto_increment.filter(key.eq(param_key)))
-        .set((value.eq(param_auto_increment.value),))
+    diesel::update(auto_increment.filter(key.eq(param_auto_increment.key)))
+        .set((value.eq(param_auto_increment.value), ))
         .execute(conn)
         .expect("Update: Error");
 
@@ -654,15 +783,34 @@ pub fn create_extend_pledge_period(
     Ok("Insert successfully!".to_string())
 }
 
+pub fn upsert_extend_pledge_period(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_extend_pledge_period: ExtendPledgePeriod,
+) -> Result<String, Error> {
+    use schema::extend_pledge_period::dsl::*;
+    let param_key = param_extend_pledge_period.key.clone();
+
+    let get_extend_pledge_period: Vec<ExtendPledgePeriod> = extend_pledge_period
+        .filter(key.eq(param_key))
+        .select(ExtendPledgePeriod::as_select())
+        .load(conn)
+        .expect("");
+
+    if get_extend_pledge_period.is_empty() {
+        create_extend_pledge_period(conn, param_extend_pledge_period)
+    } else {
+        update_extend_pledge_period(conn, param_extend_pledge_period)
+    }
+}
+
 pub fn update_extend_pledge_period(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_extend_pledge_period: ExtendPledgePeriod,
-    param_key: i64,
 ) -> Result<String, Error> {
     use schema::extend_pledge_period::dsl::*;
 
-    diesel::update(extend_pledge_period.filter(key.eq(param_key)))
-        .set((value.eq(param_extend_pledge_period.value),))
+    diesel::update(extend_pledge_period.filter(key.eq(param_extend_pledge_period.key)))
+        .set((value.eq(param_extend_pledge_period.value), ))
         .execute(conn)
         .expect("Update: Error");
 
