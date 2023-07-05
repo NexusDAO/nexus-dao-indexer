@@ -2,12 +2,13 @@ use crate::models::{Balances, StakeAmounts};
 use crate::schema::daos::dsl::daos;
 use crate::{
     database::{
-        insert_profile, upsert_profile, get_all_dao_ids, get_all_proposal_ids, get_creating_dao_proposal_ids,
-        get_dao_by_id, get_dao_proposal_ids_by_dao_id, get_funds_total, get_pledgers_total, get_balances_by_key,
-        get_profile_by_address, get_proposals_by_proposal_id, get_records_by_height,
-        get_stake_funds_total, get_stakes_by_key, insert_token_info, update_profile, POOL,
+        create_profile, get_all_dao_ids, get_all_proposal_ids, get_balances,
+        get_creating_dao_proposal_ids, get_dao_by_id, get_dao_proposal_ids_by_dao_id,
+        get_funds_total, get_pledgers_total, get_profile_by_address, get_proposals_by_proposal_id,
+        get_records_by_height, get_stake_funds_total, get_stakes, insert_token_info,
+        update_profile, POOL,
     },
-    models::{Input, Daos, Output, Profiles, Proposals, RespProfile, RespRecords, TokenInfos},
+    models::{Daos, Input, Output, Profiles, Proposals, RespProfile, RespRecords, TokenInfos},
     schema::profiles::avatar,
 };
 use axum::{extract::Query, response::Json};

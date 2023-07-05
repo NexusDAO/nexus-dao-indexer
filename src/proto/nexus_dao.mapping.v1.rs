@@ -18,7 +18,11 @@ pub struct Proposal {
     pub duration: u64,
     #[prost(uint32, tag="9")]
     pub proposal_type: u32,
-    #[prost(uint32, tag="10")]
+    #[prost(uint64, tag="10")]
+    pub adopt: u64,
+    #[prost(uint64, tag="11")]
+    pub reject: u64,
+    #[prost(uint32, tag="12")]
     pub status: u32,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
