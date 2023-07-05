@@ -1,6 +1,11 @@
 use anyhow::{Error, Ok};
 use clap::builder::Str;
-use diesel::{associations::HasTable, r2d2::{ConnectionManager, PoolError}, BoolExpressionMethods, ExpressionMethods, PgConnection, PgNetExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper, update};
+use diesel::{
+    associations::HasTable,
+    r2d2::{ConnectionManager, PoolError},
+    update, BoolExpressionMethods, ExpressionMethods, PgConnection, PgNetExpressionMethods,
+    QueryDsl, RunQueryDsl, SelectableHelper,
+};
 use futures03::StreamExt;
 use lazy_static::lazy_static;
 use r2d2::{Pool, PooledConnection};
@@ -8,6 +13,8 @@ use r2d2_postgres::postgres::types::ToSql;
 use std::env;
 
 use crate::schema::balances::dsl::balances;
+use crate::schema::balances::key;
+use crate::schema::profiles::dsl::profiles;
 use crate::schema::proposals::dsl::proposals;
 use crate::schema::stake_amounts::dsl::stake_amounts;
 use crate::{
@@ -18,8 +25,6 @@ use crate::{
     },
     schema::{self},
 };
-use crate::schema::balances::key;
-use crate::schema::profiles::dsl::profiles;
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -756,7 +761,7 @@ pub fn update_auto_increment(
     use schema::auto_increment::dsl::*;
 
     diesel::update(auto_increment.filter(key.eq(param_auto_increment.key)))
-        .set((value.eq(param_auto_increment.value), ))
+        .set((value.eq(param_auto_increment.value),))
         .execute(conn)
         .expect("Update: Error");
 
@@ -810,7 +815,7 @@ pub fn update_extend_pledge_period(
     use schema::extend_pledge_period::dsl::*;
 
     diesel::update(extend_pledge_period.filter(key.eq(param_extend_pledge_period.key)))
-        .set((value.eq(param_extend_pledge_period.value), ))
+        .set((value.eq(param_extend_pledge_period.value),))
         .execute(conn)
         .expect("Update: Error");
 
