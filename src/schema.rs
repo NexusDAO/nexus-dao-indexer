@@ -118,11 +118,13 @@ diesel::table! {
 }
 
 diesel::table! {
-    votes (voter) {
+    votes (key) {
+        key -> Text,
         voter -> Text,
         proposal_id -> Int8,
-        token_id -> Int8,
         is_agreed -> Bool,
+        time -> Int8,
+        amount -> Int8,
     }
 }
 

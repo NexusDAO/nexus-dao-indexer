@@ -239,10 +239,23 @@ pub struct NewProposals<'a> {
 #[diesel(table_name = votes)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Votes {
+    pub key: String,
     pub voter: String,
     pub proposal_id: i64,
-    pub token_id: i64,
     pub is_agreed: bool,
+    pub time: i64,
+    pub amount: i64,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = votes)]
+pub struct NewVotes<'a> {
+    pub key: &'a str,
+    pub voter: &'a str,
+    pub proposal_id: i64,
+    pub is_agreed: bool,
+    pub time: i64,
+    pub amount: i64,
 }
 
 #[derive(Queryable, Selectable, Deserialize, Serialize)]

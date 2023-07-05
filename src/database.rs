@@ -1,15 +1,25 @@
 use anyhow::{Error, Ok};
 use clap::builder::Str;
-use diesel::{associations::HasTable, r2d2::{ConnectionManager, PoolError}, BoolExpressionMethods, ExpressionMethods, PgConnection, PgNetExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper, update};
+use diesel::{
+    associations::HasTable,
+    r2d2::{ConnectionManager, PoolError},
+    update, BoolExpressionMethods, ExpressionMethods, PgConnection, PgNetExpressionMethods,
+    QueryDsl, RunQueryDsl, SelectableHelper,
+};
 use futures03::StreamExt;
 use lazy_static::lazy_static;
 use r2d2::{Pool, PooledConnection};
 use r2d2_postgres::postgres::types::ToSql;
 use std::env;
 
+use crate::models::{NewVotes, Votes};
+use crate::schema::auto_increment::dsl::auto_increment;
 use crate::schema::balances::dsl::balances;
+use crate::schema::balances::key;
+use crate::schema::profiles::dsl::profiles;
 use crate::schema::proposals::dsl::proposals;
 use crate::schema::stake_amounts::dsl::stake_amounts;
+use crate::schema::votes::dsl::votes;
 use crate::{
     models::{
         AutoIncrement, Balances, Daos, ExtendPledgePeriod, NewAutoIncrement, NewBalances, NewDaos,
@@ -18,8 +28,6 @@ use crate::{
     },
     schema::{self},
 };
-use crate::schema::balances::key;
-use crate::schema::profiles::dsl::profiles;
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -146,6 +154,78 @@ pub fn get_stakes_by_key(
         .expect("Error loading balances");
 
     Ok(ret_stakes)
+}
+
+pub fn get_vote_by_key(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_key: String,
+) -> Result<Votes, Error> {
+    use schema::votes::dsl::*;
+
+    let mut ret_votes: Vec<Votes> = votes
+        .filter(key.eq(param_key))
+        .select(Votes::as_select())
+        .load(conn)
+        .expect("Error loading balances");
+
+    if ret_votes.is_empty() {
+        return Err(Error::msg("The votes was not found"));
+    }
+
+    Ok(ret_votes.pop().unwrap())
+}
+
+pub fn get_vote_by_voter(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_voter: String,
+) -> Result<Vec<Votes>, Error> {
+    use schema::votes::dsl::*;
+
+    let ret_votes: Vec<Votes> = votes
+        .filter(voter.eq(param_voter))
+        .select(Votes::as_select())
+        .load(conn)
+        .expect("Error loading votes");
+
+    Ok(ret_votes)
+}
+
+pub fn get_auto_increment_by_key(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_key: i64,
+) -> Result<AutoIncrement, Error> {
+    use schema::auto_increment::dsl::*;
+
+    let mut ret_auto_increment: Vec<AutoIncrement> = auto_increment
+        .filter(key.eq(param_key))
+        .select(AutoIncrement::as_select())
+        .load(conn)
+        .expect("Error loading auto_increment");
+
+    if ret_auto_increment.is_empty() {
+        return Err(Error::msg("The auto_increment was not found"));
+    }
+
+    Ok(ret_auto_increment.pop().unwrap())
+}
+
+pub fn get_extend_pledge_period_by_key(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_key: i64,
+) -> Result<ExtendPledgePeriod, Error> {
+    use schema::extend_pledge_period::dsl::*;
+
+    let mut ret_extend_pledge_period: Vec<ExtendPledgePeriod> = extend_pledge_period
+        .filter(key.eq(param_key))
+        .select(ExtendPledgePeriod::as_select())
+        .load(conn)
+        .expect("Error loading extend_pledge_period");
+
+    if ret_extend_pledge_period.is_empty() {
+        return Err(Error::msg("The extend_pledge_period was not found"));
+    }
+
+    Ok(ret_extend_pledge_period.pop().unwrap())
 }
 
 pub fn get_pledgers_total(
@@ -756,7 +836,7 @@ pub fn update_auto_increment(
     use schema::auto_increment::dsl::*;
 
     diesel::update(auto_increment.filter(key.eq(param_auto_increment.key)))
-        .set((value.eq(param_auto_increment.value), ))
+        .set((value.eq(param_auto_increment.value),))
         .execute(conn)
         .expect("Update: Error");
 
@@ -810,9 +890,33 @@ pub fn update_extend_pledge_period(
     use schema::extend_pledge_period::dsl::*;
 
     diesel::update(extend_pledge_period.filter(key.eq(param_extend_pledge_period.key)))
-        .set((value.eq(param_extend_pledge_period.value), ))
+        .set((value.eq(param_extend_pledge_period.value),))
         .execute(conn)
         .expect("Update: Error");
 
     Ok("Update successfully!".to_string())
+}
+
+pub fn insert_votes(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_vote: Votes,
+) -> Result<String, Error> {
+    use schema::votes;
+
+    let new_vote = NewVotes {
+        key: &param_vote.key,
+        voter: &param_vote.voter,
+        proposal_id: param_vote.proposal_id,
+        is_agreed: param_vote.is_agreed,
+        time: param_vote.time,
+        amount: param_vote.amount,
+    };
+
+    diesel::insert_into(votes::table)
+        .values(&new_vote)
+        .on_conflict(votes::key)
+        .do_nothing()
+        .execute(conn)?;
+
+    Ok("Insert successfully!".to_string())
 }
