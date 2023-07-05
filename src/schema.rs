@@ -35,6 +35,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    daos_schema (name) {
+        name -> Text,
+        dao_type -> Int8,
+        creater -> Text,
+        icon -> Text,
+        description -> Text,
+        official_link -> Text,
+    }
+}
+
+diesel::table! {
     extend_pledge_period (key) {
         key -> Int8,
         value -> Int8,
@@ -130,6 +141,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     auto_increment,
     balances,
     daos,
+    daos_schema,
     extend_pledge_period,
     profiles,
     proposals,

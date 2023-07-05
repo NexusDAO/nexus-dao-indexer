@@ -23,6 +23,7 @@ use tower_http::cors::{Any, CorsLayer};
 mod cli;
 mod database;
 mod handlers;
+mod mapping_struct;
 mod models;
 mod program_handler;
 mod proto;
@@ -140,7 +141,7 @@ async fn sync(
                                 .context("insertion in db failed")
                                 .unwrap();
 
-                            program_handler(rest_api, &records);
+                            program_handler(&mut conn, rest_api, &records);
                         }
                         None => {}
                     }
