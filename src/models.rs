@@ -325,13 +325,3 @@ pub struct NewExtendPledgePeriod {
     pub key: i64,
     pub value: i64,
 }
-
-pub enum DaoType {
-    Finance,
-    Governance,
-    Community,
-    Investment,
-    Creative,
-    Charity,
-    Education,
-}

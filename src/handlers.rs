@@ -1,5 +1,5 @@
+use crate::database::{get_balances_by_key, get_stakes_by_key, insert_profile, upsert_profile};
 use crate::models::{Balances, StakeAmounts};
-use crate::schema::daos::dsl::daos;
 use crate::{
     database::{
         get_all_dao_ids, get_all_proposal_ids, get_balances_by_key, get_creating_dao_proposal_ids,
@@ -12,7 +12,6 @@ use crate::{
     schema::profiles::avatar,
 };
 use axum::{extract::Query, response::Json};
-use diesel::row::NamedRow;
 use diesel::{r2d2::ConnectionManager, PgConnection};
 use r2d2::PooledConnection;
 use snarkvm::circuit::IntegerProperties;
