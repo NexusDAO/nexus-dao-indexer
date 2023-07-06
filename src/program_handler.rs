@@ -1,12 +1,16 @@
 use crate::{
     database::{
-        create_dao, create_extend_pledge_period, create_proposal, insert_token_info, insert_votes,
-        update_dao, update_proposal, update_stake_amounts, update_token_info,
-        upsert_auto_increment, upsert_balances, upsert_profile, upsert_stake_amounts,
+        create_dao, create_extend_pledge_period, create_proposal, get_auto_increment_by_key,
+        insert_token_info, insert_votes, update_dao, update_proposal, update_stake_amounts,
+        update_token_info, upsert_auto_increment, upsert_balances, upsert_profile,
+        upsert_stake_amounts,
     },
-    mapping_struct::{Dao, HoldToken, Profile, Proposal, TokenInfo, Vote},
+    mappings::{
+        AutoIncrement, Dao, ExtendPledgePeriod, HoldToken, Profile, Proposal, TokenInfo, Vote,
+    },
     models,
     proto::Records,
+    schema::votes,
 };
 use anyhow::Error;
 use diesel::{r2d2::ConnectionManager, PgConnection};
@@ -15,12 +19,21 @@ use snarkvm::{prelude::*, utilities::ToBits};
 
 type CurrentNetwork = snarkvm::prelude::Testnet3;
 
-const PROGRAM_ID: &str = "pledge_vote.aleo";
-const AUTO_INCREMENT_TIMESTAMP: u8 = 0;
-const AUTO_INCREMENT_TOKEN_INFOS: u8 = 1;
-const AUTO_INCREMENT_PROPOSALS: u8 = 2;
-const AUTO_INCREMENT_DAOS: u8 = 3;
-const AUTO_INCREMENT_VOTES: u8 = 4;
+const PROGRAM_ID: &str = "dao222.aleo";
+const INIT_VALUE_AUTO_INCREMENT_TOKEN_INFOS: i64 = 1;
+const INIT_VALUE_AUTO_INCREMENT_PROPOSALS: i64 = 1;
+const INIT_VALUE_AUTO_INCREMENT_DAOS: i64 = 1;
+const INIT_VALUE_AUTO_INCREMENT_VOTES: i64 = 1;
+const KEY_AUTO_INCREMENT_TIMESTAMP: i64 = 0;
+const KEY_AUTO_INCREMENT_TOKEN_INFOS: i64 = 1;
+const KEY_AUTO_INCREMENT_PROPOSALS: i64 = 2;
+const KEY_AUTO_INCREMENT_DAOS: i64 = 3;
+const KEY_AUTO_INCREMENT_VOTES: i64 = 4;
+const MAPPING_KEY_AUTO_INCREMENT_TIMESTAMP: &str = "0u8";
+const MAPPING_KEY_AUTO_INCREMENT_TOKEN_INFOS: &str = "1u8";
+const MAPPING_KEY_AUTO_INCREMENT_PROPOSALS: &str = "2u8";
+const MAPPING_KEY_AUTO_INCREMENT_DAOS: &str = "3u8";
+const MAPPING_KEY_AUTO_INCREMENT_VOTES: &str = "4u8";
 const MAPPING_NAME_AUTO_INCREMENT: &str = "auto_increment";
 const MAPPING_NAME_PROFILES: &str = "profiles";
 const MAPPING_NAME_DAOS: &str = "daos";
@@ -31,23 +44,25 @@ const MAPPING_NAME_PROPOSALS: &str = "proposals";
 const MAPPING_NAME_VOTES: &str = "votes";
 const MAPPING_NAME_EXTEND_PLEDGE_PERIOD: &str = "extend_pledge_period";
 
-fn bhp_256_hash(data: &String) -> Result<Field<CurrentNetwork>, Error> {
+fn bhp_256_hash<T: ToBits>(data: &T) -> Result<Field<CurrentNetwork>, Error> {
     <CurrentNetwork as Network>::hash_bhp256(&data.to_bits_le())
 }
 
-fn fetch_mapping<T: for<'de> Deserialize<'de>>(
+fn fetch_mapping(
     rest_api: &String,
     program_id: &String,
     mapping_name: &String,
     mapping_key: &String,
-) -> Result<T, Error> {
-    let response: T = ureq::get(&format!(
-        "{rest_api}/testnet3/program/{program_id}/mapping/{mapping_name}/{mapping_key}"
-    ))
-    .call()?
-    .into_json()?;
+) -> Result<String, Error> {
+    let url =
+        format!("{rest_api}/testnet3/program/{program_id}/mapping/{mapping_name}/{mapping_key}");
+    let value = ureq::get(&url).call()?.into_string()?;
 
-    Ok(response)
+    if value == "null" {
+        return Err(anyhow!("Mapping value is null (url {})", url));
+    }
+
+    Ok(value)
 }
 
 pub fn program_handler(
@@ -63,12 +78,20 @@ pub fn program_handler(
         match record.function.as_str() {
             "mint" => {
                 let owner = &record.finalize[0];
+                // TODO: Fix the calculation of mapping key
                 let hash_owner = bhp_256_hash(owner).unwrap();
                 let token_info_id = &record.finalize[2];
-                let hash_id = bhp_256_hash(token_info_id).unwrap();
+                let hash_id = bhp_256_hash(
+                    &token_info_id
+                        .trim_end_matches("u64")
+                        .parse::<u64>()
+                        .unwrap(),
+                )
+                .unwrap();
 
                 let output_token_record_ciphertext = &record.outputs[0].value;
                 let token_infos_mapping_key = token_info_id;
+                // TODO: Fix the calculation of mapping key
                 let balances_mapping_key = &hash_owner.add(hash_id).to_string();
 
                 let token_info: TokenInfo = match fetch_mapping(
@@ -77,12 +100,26 @@ pub fn program_handler(
                     &MAPPING_NAME_TOKEN_INFOS.to_string(),
                     token_infos_mapping_key,
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => TokenInfo::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
+
+                let hold_token: HoldToken = match fetch_mapping(
+                    rest_api,
+                    &PROGRAM_ID.to_string(),
+                    &MAPPING_NAME_BALANCES.to_string(),
+                    balances_mapping_key,
+                ) {
+                    Ok(data) => HoldToken::from_mapping_value(&data).unwrap(),
+                    Err(err) => {
+                        println!("Fetch mapping error {:#}", err);
+                        continue;
+                    }
+                };
+
                 update_token_info(
                     conn,
                     models::TokenInfos {
@@ -98,22 +135,10 @@ pub fn program_handler(
                     },
                 );
 
-                let hold_token: HoldToken = match fetch_mapping(
-                    rest_api,
-                    &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_BALANCES.to_string(),
-                    balances_mapping_key,
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Fetch mapping error {:#}", err);
-                        continue;
-                    }
-                };
                 upsert_balances(
                     conn,
                     models::Balances {
-                        key: balances_mapping_key.clone(),
+                        key: balances_mapping_key.to_string(),
                         owner: hold_token.token_owner,
                         amount: hold_token.amount as i64,
                         token_info_id: hold_token.token_info_id as i64,
@@ -125,11 +150,18 @@ pub fn program_handler(
                 let hash_owner: Field<CurrentNetwork> =
                     Field::from_str(&record.finalize[0]).unwrap();
                 let token_info_id = &record.finalize[2];
-                let hash_id = bhp_256_hash(token_info_id).unwrap();
+                let hash_id = bhp_256_hash(
+                    &token_info_id
+                        .trim_end_matches("u64")
+                        .parse::<u64>()
+                        .unwrap(),
+                )
+                .unwrap();
 
                 let input_token_record_ciphertext = &record.inputs[0].value;
                 let output_token1_record_ciphertext = &record.outputs[0].value;
                 let output_token2_record_ciphertext = &record.outputs[1].value;
+                // TODO: Fix the calculation of mapping key
                 let stake_amounts_mapping_key = &hash_owner.add(hash_id).to_string();
 
                 let hold_token: HoldToken = match fetch_mapping(
@@ -138,12 +170,13 @@ pub fn program_handler(
                     &MAPPING_NAME_STAKE_AMOUNTS.to_string(),
                     stake_amounts_mapping_key,
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => HoldToken::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
+
                 upsert_stake_amounts(
                     conn,
                     models::StakeAmounts {
@@ -159,7 +192,13 @@ pub fn program_handler(
                 let hash_owner: Field<CurrentNetwork> =
                     Field::from_str(&record.finalize[1]).unwrap();
                 let token_info_id = &record.finalize[3];
-                let hash_id = bhp_256_hash(&token_info_id).unwrap();
+                let hash_id = bhp_256_hash(
+                    &token_info_id
+                        .trim_end_matches("u64")
+                        .parse::<u64>()
+                        .unwrap(),
+                )
+                .unwrap();
 
                 let input_token_record_ciphertext = &record.inputs[0].value;
                 let output_token_record_ciphertext = &record.outputs[0].value;
@@ -171,12 +210,13 @@ pub fn program_handler(
                     &MAPPING_NAME_STAKE_AMOUNTS.to_string(),
                     stake_amounts_mapping_key,
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => HoldToken::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
+
                 update_stake_amounts(
                     conn,
                     models::StakeAmounts {
@@ -193,9 +233,16 @@ pub fn program_handler(
                 let receiver = &record.finalize[1];
                 let token_info_id = &record.finalize[3];
 
-                let hash_id = bhp_256_hash(&token_info_id).unwrap();
-                let sender_hash = bhp_256_hash(&sender).unwrap();
-                let receiver_hash = bhp_256_hash(&receiver).unwrap();
+                let hash_id = bhp_256_hash(
+                    &token_info_id
+                        .trim_end_matches("u64")
+                        .parse::<u64>()
+                        .unwrap(),
+                )
+                .unwrap();
+                // TODO: Fix the calculation of mapping key
+                let sender_hash = bhp_256_hash(sender).unwrap();
+                let receiver_hash = bhp_256_hash(receiver).unwrap();
 
                 let input_token_record_ciphertext = &record.inputs[0].value;
                 let output_token1_record_ciphertext = &record.outputs[0].value;
@@ -209,7 +256,7 @@ pub fn program_handler(
                     &MAPPING_NAME_BALANCES.to_string(),
                     sender_balances_mapping_key,
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => HoldToken::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
@@ -231,7 +278,7 @@ pub fn program_handler(
                     &MAPPING_NAME_BALANCES.to_string(),
                     receiver_balances_mapping_key,
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => HoldToken::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
@@ -263,8 +310,15 @@ pub fn program_handler(
             "fee" => {
                 let owner = &record.finalize[0];
                 let token_info_id = &record.finalize[2];
-                let hash_owner = bhp_256_hash(&owner).unwrap();
-                let hash_id = bhp_256_hash(&token_info_id).unwrap();
+                // TODO: Fix the calculation of mapping key
+                let hash_owner = bhp_256_hash(owner).unwrap();
+                let hash_id = bhp_256_hash(
+                    &token_info_id
+                        .trim_end_matches("u64")
+                        .parse::<u64>()
+                        .unwrap(),
+                )
+                .unwrap();
 
                 let input_token_record_ciphertext = &record.inputs[0].value;
                 let output_token_record_ciphertext = &record.outputs[0].value;
@@ -277,26 +331,12 @@ pub fn program_handler(
                     &MAPPING_NAME_TOKEN_INFOS.to_string(),
                     &token_infos_mapping_key,
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => TokenInfo::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
-                update_token_info(
-                    conn,
-                    models::TokenInfos {
-                        id: todo!(),
-                        name: todo!(),
-                        symbol: todo!(),
-                        supply: todo!(),
-                        decimals: todo!(),
-                        max_mint_amount: todo!(),
-                        minted_amount: todo!(),
-                        dao_id: todo!(),
-                        only_creator_can_mint: todo!(),
-                    },
-                );
 
                 let hold_token: HoldToken = match fetch_mapping(
                     rest_api,
@@ -304,12 +344,28 @@ pub fn program_handler(
                     &MAPPING_NAME_BALANCES.to_string(),
                     balances_mapping_key,
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => HoldToken::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
+
+                update_token_info(
+                    conn,
+                    models::TokenInfos {
+                        id: token_info.id as i64,
+                        name: token_info.name,
+                        symbol: token_info.symbol,
+                        supply: token_info.supply as i64,
+                        decimals: token_info.decimals as i64,
+                        max_mint_amount: token_info.max_mint_amount as i64,
+                        minted_amount: token_info.minted_amount as i64,
+                        dao_id: token_info.dao_id as i64,
+                        only_creator_can_mint: token_info.only_creator_can_mint,
+                    },
+                );
+
                 upsert_balances(
                     conn,
                     models::Balances {
@@ -330,12 +386,13 @@ pub fn program_handler(
                     &MAPPING_NAME_PROFILES.to_string(),
                     profiles_mapping_key,
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => Profile::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
+
                 upsert_profile(
                     conn,
                     models::Profiles {
@@ -348,13 +405,13 @@ pub fn program_handler(
             }
 
             "update_time" => {
-                let timestamp: u64 = match fetch_mapping(
+                let timestamp = match fetch_mapping(
                     rest_api,
                     &PROGRAM_ID.to_string(),
                     &MAPPING_NAME_AUTO_INCREMENT.to_string(),
-                    &AUTO_INCREMENT_TIMESTAMP.to_string(),
+                    &MAPPING_KEY_AUTO_INCREMENT_TIMESTAMP.to_string(),
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => AutoIncrement::from_mapping_value(&data).unwrap().value,
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
@@ -363,51 +420,68 @@ pub fn program_handler(
                 upsert_auto_increment(
                     conn,
                     models::AutoIncrement {
-                        key: AUTO_INCREMENT_TIMESTAMP as i64,
+                        key: KEY_AUTO_INCREMENT_TIMESTAMP,
                         value: timestamp as i64,
                     },
                 );
             }
 
             "create_dao" => {
-                let daos_mapping_key: u64 = match fetch_mapping(
-                    rest_api,
-                    &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_AUTO_INCREMENT.to_string(),
-                    &AUTO_INCREMENT_DAOS.to_string(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Fetch mapping error {:#}", err);
-                        continue;
-                    }
-                };
+                let daos_mapping_key = get_auto_increment_by_key(conn, KEY_AUTO_INCREMENT_DAOS)
+                    .unwrap_or_else(|_| {
+                        upsert_auto_increment(
+                            conn,
+                            models::AutoIncrement {
+                                key: KEY_AUTO_INCREMENT_DAOS,
+                                value: INIT_VALUE_AUTO_INCREMENT_DAOS,
+                            },
+                        )
+                        .unwrap();
+                        get_auto_increment_by_key(conn, KEY_AUTO_INCREMENT_DAOS).unwrap()
+                    })
+                    .value;
 
-                let token_infos_mapping_key: u64 = match fetch_mapping(
-                    rest_api,
-                    &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_AUTO_INCREMENT.to_string(),
-                    &AUTO_INCREMENT_TOKEN_INFOS.to_string(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Fetch mapping error {:#}", err);
-                        continue;
-                    }
-                };
+                let token_infos_mapping_key =
+                    get_auto_increment_by_key(conn, KEY_AUTO_INCREMENT_TOKEN_INFOS)
+                        .unwrap_or_else(|_| {
+                            upsert_auto_increment(
+                                conn,
+                                models::AutoIncrement {
+                                    key: KEY_AUTO_INCREMENT_TOKEN_INFOS,
+                                    value: INIT_VALUE_AUTO_INCREMENT_TOKEN_INFOS,
+                                },
+                            )
+                            .unwrap();
+                            get_auto_increment_by_key(conn, KEY_AUTO_INCREMENT_TOKEN_INFOS).unwrap()
+                        })
+                        .value;
 
                 let token_info: TokenInfo = match fetch_mapping(
                     rest_api,
                     &PROGRAM_ID.to_string(),
                     &MAPPING_NAME_TOKEN_INFOS.to_string(),
-                    &token_infos_mapping_key.to_string(),
+                    &format!("{}{}", token_infos_mapping_key, "u64"),
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => TokenInfo::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
+
+                let dao: Dao = match fetch_mapping(
+                    rest_api,
+                    &PROGRAM_ID.to_string(),
+                    &MAPPING_NAME_DAOS.to_string(),
+                    &format!("{}{}", daos_mapping_key, "u64"),
+                ) {
+                    Ok(data) => Dao::from_mapping_value(&data).unwrap(),
+                    Err(err) => {
+                        println!("Fetch mapping error {:#}", err);
+                        continue;
+                    }
+                };
+
                 insert_token_info(
                     conn,
                     models::TokenInfos {
@@ -423,18 +497,6 @@ pub fn program_handler(
                     },
                 );
 
-                let dao: Dao = match fetch_mapping(
-                    rest_api,
-                    &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_DAOS.to_string(),
-                    &daos_mapping_key.to_string(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Fetch mapping error {:#}", err);
-                        continue;
-                    }
-                };
                 create_dao(
                     conn,
                     models::Daos {
@@ -453,10 +515,25 @@ pub fn program_handler(
                         passed_tokens_proportion: dao.passed_tokens_proportion as i64,
                     },
                 );
+
+                upsert_auto_increment(
+                    conn,
+                    models::AutoIncrement {
+                        key: KEY_AUTO_INCREMENT_TOKEN_INFOS,
+                        value: token_infos_mapping_key.add(1),
+                    },
+                );
+
+                upsert_auto_increment(
+                    conn,
+                    models::AutoIncrement {
+                        key: KEY_AUTO_INCREMENT_DAOS,
+                        value: daos_mapping_key.add(1),
+                    },
+                );
             }
 
             "update_dao" => {
-                // TODO: Processing Data
                 let daos_mapping_key = &record.finalize[1];
 
                 let dao: Dao = match fetch_mapping(
@@ -465,13 +542,13 @@ pub fn program_handler(
                     &MAPPING_NAME_DAOS.to_string(),
                     daos_mapping_key,
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => Dao::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
-                create_dao(
+                update_dao(
                     conn,
                     models::Daos {
                         id: dao.id as i64,
@@ -492,31 +569,34 @@ pub fn program_handler(
             }
 
             "create_proposal" => {
-                let proposals_mapping_key: u64 = match fetch_mapping(
+                let proposals_mapping_key =
+                    get_auto_increment_by_key(conn, KEY_AUTO_INCREMENT_PROPOSALS)
+                        .unwrap_or_else(|_| {
+                            upsert_auto_increment(
+                                conn,
+                                models::AutoIncrement {
+                                    key: KEY_AUTO_INCREMENT_PROPOSALS,
+                                    value: INIT_VALUE_AUTO_INCREMENT_PROPOSALS,
+                                },
+                            )
+                            .unwrap();
+                            get_auto_increment_by_key(conn, KEY_AUTO_INCREMENT_PROPOSALS).unwrap()
+                        })
+                        .value;
+
+                let proposal = match fetch_mapping(
                     rest_api,
                     &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_AUTO_INCREMENT.to_string(),
-                    &AUTO_INCREMENT_PROPOSALS.to_string(),
+                    &MAPPING_NAME_PROPOSALS.to_string(),
+                    &format!("{}{}", proposals_mapping_key, "u64"),
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => Proposal::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
 
-                let proposal: Proposal = match fetch_mapping(
-                    rest_api,
-                    &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_PROPOSALS.to_string(),
-                    &proposals_mapping_key.to_string(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Fetch mapping error {:#}", err);
-                        continue;
-                    }
-                };
                 create_proposal(
                     conn,
                     models::Proposals {
@@ -534,6 +614,14 @@ pub fn program_handler(
                         status: proposal.status as i64,
                     },
                 );
+
+                upsert_auto_increment(
+                    conn,
+                    models::AutoIncrement {
+                        key: KEY_AUTO_INCREMENT_PROPOSALS,
+                        value: proposals_mapping_key.add(1),
+                    },
+                );
             }
 
             "start_proposal" => {
@@ -547,7 +635,7 @@ pub fn program_handler(
                     &MAPPING_NAME_PROPOSALS.to_string(),
                     proposals_mapping_key,
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => Proposal::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
@@ -573,15 +661,14 @@ pub fn program_handler(
             }
 
             "close_proposal" => {
-                // TODO: Processing Data
                 let proposals_mapping_key = &record.finalize[1];
-                let daos_mapping_key: u64 = match fetch_mapping(
+                let daos_mapping_key = match fetch_mapping(
                     rest_api,
                     &PROGRAM_ID.to_string(),
                     &MAPPING_NAME_AUTO_INCREMENT.to_string(),
-                    &AUTO_INCREMENT_DAOS.to_string(),
+                    &MAPPING_KEY_AUTO_INCREMENT_DAOS.to_string(),
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => AutoIncrement::from_mapping_value(&data).unwrap().value,
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
@@ -595,12 +682,39 @@ pub fn program_handler(
                     &MAPPING_NAME_PROPOSALS.to_string(),
                     &proposals_mapping_key.to_string(),
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => Proposal::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
+
+                let dao: Dao = match fetch_mapping(
+                    rest_api,
+                    &PROGRAM_ID.to_string(),
+                    &MAPPING_NAME_DAOS.to_string(),
+                    &daos_mapping_key.to_string(),
+                ) {
+                    Ok(data) => Dao::from_mapping_value(&data).unwrap(),
+                    Err(err) => {
+                        println!("Fetch mapping error {:#}", err);
+                        continue;
+                    }
+                };
+
+                let extend_pledge_period: ExtendPledgePeriod = match fetch_mapping(
+                    rest_api,
+                    &PROGRAM_ID.to_string(),
+                    &MAPPING_NAME_EXTEND_PLEDGE_PERIOD.to_string(),
+                    &extend_pledge_period_mapping_key.to_string(),
+                ) {
+                    Ok(data) => ExtendPledgePeriod::from_mapping_value(&data).unwrap(),
+                    Err(err) => {
+                        println!("Fetch mapping error {:#}", err);
+                        continue;
+                    }
+                };
+
                 update_proposal(
                     conn,
                     models::Proposals {
@@ -619,18 +733,6 @@ pub fn program_handler(
                     },
                 );
 
-                let dao: Dao = match fetch_mapping(
-                    rest_api,
-                    &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_DAOS.to_string(),
-                    &daos_mapping_key.to_string(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Fetch mapping error {:#}", err);
-                        continue;
-                    }
-                };
                 update_dao(
                     conn,
                     models::Daos {
@@ -650,23 +752,11 @@ pub fn program_handler(
                     },
                 );
 
-                let extend_pledge_period: u64 = match fetch_mapping(
-                    rest_api,
-                    &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_EXTEND_PLEDGE_PERIOD.to_string(),
-                    &extend_pledge_period_mapping_key.to_string(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Fetch mapping error {:#}", err);
-                        continue;
-                    }
-                };
                 create_extend_pledge_period(
                     conn,
                     models::ExtendPledgePeriod {
                         key: extend_pledge_period_mapping_key.parse::<i64>().unwrap(),
-                        value: extend_pledge_period as i64,
+                        value: extend_pledge_period.value as i64,
                     },
                 );
             }
@@ -676,74 +766,61 @@ pub fn program_handler(
                 let output_token_record_ciphertext = &record.outputs[0].value;
                 let proposals_mapping_key = &record.finalize[0];
 
-                let daos_mapping_key: u64 = match fetch_mapping(
-                    rest_api,
-                    &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_AUTO_INCREMENT.to_string(),
-                    &AUTO_INCREMENT_DAOS.to_string(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Fetch mapping error {:#}", err);
-                        continue;
-                    }
-                };
-
-                let votes_mapping_key: u64 = match fetch_mapping(
-                    rest_api,
-                    &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_AUTO_INCREMENT.to_string(),
-                    &AUTO_INCREMENT_VOTES.to_string(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Fetch mapping error {:#}", err);
-                        continue;
-                    }
-                };
-
                 let proposal: Proposal = match fetch_mapping(
                     rest_api,
                     &PROGRAM_ID.to_string(),
                     &MAPPING_NAME_PROPOSALS.to_string(),
                     &proposals_mapping_key.to_string(),
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => Proposal::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
-                update_proposal(
-                    conn,
-                    models::Proposals {
-                        id: proposal.id as i64,
-                        title: proposal.title,
-                        proposer: proposal.proposer,
-                        summary: proposal.summary,
-                        body: proposal.body,
-                        dao_id: proposal.dao_id as i64,
-                        created: proposal.created as i64,
-                        duration: proposal.duration as i64,
-                        proposer_type: proposal.proposal_type as i64,
-                        adopt: proposal.adopt as i64,
-                        reject: proposal.reject as i64,
-                        status: proposal.status as i64,
-                    },
-                );
 
+                let daos_mapping_key = proposal.dao_id;
                 let dao: Dao = match fetch_mapping(
                     rest_api,
                     &PROGRAM_ID.to_string(),
                     &MAPPING_NAME_DAOS.to_string(),
-                    &daos_mapping_key.to_string(),
+                    &format!("{}{}", daos_mapping_key, "u64"),
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => Dao::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
+
+                let votes_mapping_key: i64 =
+                    get_auto_increment_by_key(conn, KEY_AUTO_INCREMENT_VOTES)
+                        .unwrap_or_else(|_| {
+                            upsert_auto_increment(
+                                conn,
+                                models::AutoIncrement {
+                                    key: KEY_AUTO_INCREMENT_VOTES,
+                                    value: INIT_VALUE_AUTO_INCREMENT_VOTES,
+                                },
+                            )
+                            .unwrap();
+                            get_auto_increment_by_key(conn, KEY_AUTO_INCREMENT_VOTES).unwrap()
+                        })
+                        .value;
+
+                let vote: Vote = match fetch_mapping(
+                    rest_api,
+                    &PROGRAM_ID.to_string(),
+                    &MAPPING_NAME_VOTES.to_string(),
+                    &format!("{}{}", votes_mapping_key, "u64"),
+                ) {
+                    Ok(data) => Vote::from_mapping_value(&data).unwrap(),
+                    Err(err) => {
+                        println!("Fetch mapping error {:#}", err);
+                        continue;
+                    }
+                };
+
                 update_dao(
                     conn,
                     models::Daos {
@@ -763,18 +840,24 @@ pub fn program_handler(
                     },
                 );
 
-                let vote: Vote = match fetch_mapping(
-                    rest_api,
-                    &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_VOTES.to_string(),
-                    &votes_mapping_key.to_string(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Fetch mapping error {:#}", err);
-                        continue;
-                    }
-                };
+                update_proposal(
+                    conn,
+                    models::Proposals {
+                        id: proposal.id as i64,
+                        title: proposal.title,
+                        proposer: proposal.proposer,
+                        summary: proposal.summary,
+                        body: proposal.body,
+                        dao_id: proposal.dao_id as i64,
+                        created: proposal.created as i64,
+                        duration: proposal.duration as i64,
+                        proposer_type: proposal.proposal_type as i64,
+                        adopt: proposal.adopt as i64,
+                        reject: proposal.reject as i64,
+                        status: proposal.status as i64,
+                    },
+                );
+
                 insert_votes(
                     conn,
                     models::Votes {
@@ -782,15 +865,23 @@ pub fn program_handler(
                         voter: vote.voter,
                         proposal_id: vote.proposal_id as i64,
                         is_agreed: vote.is_agreed,
-                        time: vote.timestamp as i64,
+                        time: vote.time as i64,
                         amount: vote.amount as i64,
+                    },
+                );
+
+                upsert_auto_increment(
+                    conn,
+                    models::AutoIncrement {
+                        key: KEY_AUTO_INCREMENT_VOTES,
+                        value: votes_mapping_key.add(1),
                     },
                 );
             }
 
             "init" => {
-                let daos_mapping_key = 0u64;
                 let token_infos_mapping_key = 0u64;
+                let daos_mapping_key = 0u64;
 
                 let dao: Dao = match fetch_mapping(
                     rest_api,
@@ -798,12 +889,26 @@ pub fn program_handler(
                     &MAPPING_NAME_DAOS.to_string(),
                     &daos_mapping_key.to_string(),
                 ) {
-                    Ok(data) => data,
+                    Ok(data) => Dao::from_mapping_value(&data).unwrap(),
                     Err(err) => {
                         println!("Fetch mapping error {:#}", err);
                         continue;
                     }
                 };
+
+                let token_info: TokenInfo = match fetch_mapping(
+                    rest_api,
+                    &PROGRAM_ID.to_string(),
+                    &MAPPING_NAME_TOKEN_INFOS.to_string(),
+                    &token_infos_mapping_key.to_string(),
+                ) {
+                    Ok(data) => TokenInfo::from_mapping_value(&data).unwrap(),
+                    Err(err) => {
+                        println!("Fetch mapping error {:#}", err);
+                        continue;
+                    }
+                };
+
                 create_dao(
                     conn,
                     models::Daos {
@@ -823,18 +928,6 @@ pub fn program_handler(
                     },
                 );
 
-                let token_info: TokenInfo = match fetch_mapping(
-                    rest_api,
-                    &PROGRAM_ID.to_string(),
-                    &MAPPING_NAME_TOKEN_INFOS.to_string(),
-                    &token_infos_mapping_key.to_string(),
-                ) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Fetch mapping error {:#}", err);
-                        continue;
-                    }
-                };
                 insert_token_info(
                     conn,
                     models::TokenInfos {
@@ -847,6 +940,38 @@ pub fn program_handler(
                         minted_amount: token_info.minted_amount as i64,
                         dao_id: token_info.dao_id as i64,
                         only_creator_can_mint: token_info.only_creator_can_mint,
+                    },
+                );
+
+                upsert_auto_increment(
+                    conn,
+                    models::AutoIncrement {
+                        key: KEY_AUTO_INCREMENT_DAOS,
+                        value: INIT_VALUE_AUTO_INCREMENT_DAOS,
+                    },
+                );
+
+                upsert_auto_increment(
+                    conn,
+                    models::AutoIncrement {
+                        key: KEY_AUTO_INCREMENT_TOKEN_INFOS,
+                        value: INIT_VALUE_AUTO_INCREMENT_TOKEN_INFOS,
+                    },
+                );
+
+                upsert_auto_increment(
+                    conn,
+                    models::AutoIncrement {
+                        key: KEY_AUTO_INCREMENT_PROPOSALS,
+                        value: INIT_VALUE_AUTO_INCREMENT_PROPOSALS,
+                    },
+                );
+
+                upsert_auto_increment(
+                    conn,
+                    models::AutoIncrement {
+                        key: KEY_AUTO_INCREMENT_VOTES,
+                        value: INIT_VALUE_AUTO_INCREMENT_VOTES,
                     },
                 );
             }

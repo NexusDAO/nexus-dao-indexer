@@ -23,7 +23,7 @@ use tower_http::cors::{Any, CorsLayer};
 mod cli;
 mod database;
 mod handlers;
-mod mapping_struct;
+mod mappings;
 mod models;
 mod program_handler;
 mod proto;
