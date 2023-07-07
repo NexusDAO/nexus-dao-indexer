@@ -10,14 +10,14 @@ use crate::{
     },
     models,
     proto::Records,
-    schema::votes,
 };
 use anyhow::Error;
 use diesel::{r2d2::ConnectionManager, PgConnection};
 use r2d2::PooledConnection;
-use snarkvm::{prelude::*, utilities::ToBits};
+use snarkvm::console::program::Plaintext;
+use snarkvm::prelude::{traits::ToBits, *};
 
-type CurrentNetwork = snarkvm::prelude::Testnet3;
+type CurrentNetwork = Testnet3;
 
 const PROGRAM_ID: &str = "dao222.aleo";
 const INIT_VALUE_AUTO_INCREMENT_TOKEN_INFOS: i64 = 1;
@@ -44,8 +44,20 @@ const MAPPING_NAME_PROPOSALS: &str = "proposals";
 const MAPPING_NAME_VOTES: &str = "votes";
 const MAPPING_NAME_EXTEND_PLEDGE_PERIOD: &str = "extend_pledge_period";
 
-fn bhp_256_hash<T: ToBits>(data: &T) -> Result<Field<CurrentNetwork>, Error> {
-    <CurrentNetwork as Network>::hash_bhp256(&data.to_bits_le())
+fn bhp256_hash_address(addr: &String) -> Result<Field<Testnet3>, Error> {
+    let field = Testnet3::hash_bhp256(
+        &Plaintext::from(Literal::Address(
+            Address::<Testnet3>::parse(addr).unwrap().1,
+        ))
+        .to_bits_le(),
+    )?;
+    Ok(field)
+}
+
+fn bhp256_hash_u64(value: u64) -> Result<Field<Testnet3>, Error> {
+    let plaintext: Plaintext<Testnet3> = Plaintext::from(Literal::U64(U64::new(value)));
+    let field = Testnet3::hash_bhp256(&plaintext.to_bits_le())?;
+    Ok(field)
 }
 
 fn fetch_mapping(
@@ -78,20 +90,19 @@ pub fn program_handler(
         match record.function.as_str() {
             "mint" => {
                 let owner = &record.finalize[0];
-                // TODO: Fix the calculation of mapping key
-                let hash_owner = bhp_256_hash(owner).unwrap();
                 let token_info_id = &record.finalize[2];
-                let hash_id = bhp_256_hash(
-                    &token_info_id
+                let output_token_record_ciphertext = &record.outputs[0].value;
+
+                let hash_owner = bhp256_hash_address(owner).unwrap();
+                let hash_id = bhp256_hash_u64(
+                    token_info_id
                         .trim_end_matches("u64")
                         .parse::<u64>()
                         .unwrap(),
                 )
                 .unwrap();
 
-                let output_token_record_ciphertext = &record.outputs[0].value;
                 let token_infos_mapping_key = token_info_id;
-                // TODO: Fix the calculation of mapping key
                 let balances_mapping_key = &hash_owner.add(hash_id).to_string();
 
                 let token_info: TokenInfo = match fetch_mapping(
@@ -150,8 +161,8 @@ pub fn program_handler(
                 let hash_owner: Field<CurrentNetwork> =
                     Field::from_str(&record.finalize[0]).unwrap();
                 let token_info_id = &record.finalize[2];
-                let hash_id = bhp_256_hash(
-                    &token_info_id
+                let hash_id = bhp256_hash_u64(
+                    token_info_id
                         .trim_end_matches("u64")
                         .parse::<u64>()
                         .unwrap(),
@@ -161,7 +172,6 @@ pub fn program_handler(
                 let input_token_record_ciphertext = &record.inputs[0].value;
                 let output_token1_record_ciphertext = &record.outputs[0].value;
                 let output_token2_record_ciphertext = &record.outputs[1].value;
-                // TODO: Fix the calculation of mapping key
                 let stake_amounts_mapping_key = &hash_owner.add(hash_id).to_string();
 
                 let hold_token: HoldToken = match fetch_mapping(
@@ -192,8 +202,8 @@ pub fn program_handler(
                 let hash_owner: Field<CurrentNetwork> =
                     Field::from_str(&record.finalize[1]).unwrap();
                 let token_info_id = &record.finalize[3];
-                let hash_id = bhp_256_hash(
-                    &token_info_id
+                let hash_id = bhp256_hash_u64(
+                    token_info_id
                         .trim_end_matches("u64")
                         .parse::<u64>()
                         .unwrap(),
@@ -233,16 +243,15 @@ pub fn program_handler(
                 let receiver = &record.finalize[1];
                 let token_info_id = &record.finalize[3];
 
-                let hash_id = bhp_256_hash(
-                    &token_info_id
+                let hash_id = bhp256_hash_u64(
+                    token_info_id
                         .trim_end_matches("u64")
                         .parse::<u64>()
                         .unwrap(),
                 )
                 .unwrap();
-                // TODO: Fix the calculation of mapping key
-                let sender_hash = bhp_256_hash(sender).unwrap();
-                let receiver_hash = bhp_256_hash(receiver).unwrap();
+                let sender_hash = bhp256_hash_address(sender).unwrap();
+                let receiver_hash = bhp256_hash_address(receiver).unwrap();
 
                 let input_token_record_ciphertext = &record.inputs[0].value;
                 let output_token1_record_ciphertext = &record.outputs[0].value;
@@ -310,10 +319,9 @@ pub fn program_handler(
             "fee" => {
                 let owner = &record.finalize[0];
                 let token_info_id = &record.finalize[2];
-                // TODO: Fix the calculation of mapping key
-                let hash_owner = bhp_256_hash(owner).unwrap();
-                let hash_id = bhp_256_hash(
-                    &token_info_id
+                let hash_owner = bhp256_hash_address(owner).unwrap();
+                let hash_id = bhp256_hash_u64(
+                    token_info_id
                         .trim_end_matches("u64")
                         .parse::<u64>()
                         .unwrap(),

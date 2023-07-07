@@ -151,7 +151,7 @@ impl HoldToken {
     pub fn from_mapping_value(value: &String) -> Result<Self, Error> {
         let data = revert_to_str_map(value)?;
         Ok(Self {
-            token_owner: data["owntoken_ownerer"].to_string(),
+            token_owner: data["token_owner"].to_string(),
             amount: data["amount"].trim_end_matches("u64").parse::<u64>()?,
             token_info_id: data["token_info_id"]
                 .trim_end_matches("u64")
