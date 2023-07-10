@@ -1,11 +1,14 @@
-use crate::models::{NewVotes, Votes};
+use crate::models::{NewRecord, NewRecordStatus, RecordStatus};
+use crate::proto::Records;
 use crate::schema::balances::dsl::balances;
 use crate::schema::balances::key;
+use crate::schema::record_status::record_ciphertext;
 use crate::{
     models::{
-        AutoIncrement, Balances, Daos, ExtendPledgePeriod, NewAutoIncrement, NewBalances, NewDaos,
-        NewExtendPledgePeriod, NewProfiles, NewProposals, NewStakeAmounts, NewToken, NewTokenInfos,
-        Profiles, Proposals, Record, StakeAmounts, Token, TokenInfos,
+        AutoIncrement, Balances, Daos, ExtendPledgePeriod, Input, NewAutoIncrement, NewBalances,
+        NewDaos, NewExtendPledgePeriod, NewProfiles, NewProposals, NewStakeAmounts, NewToken,
+        NewTokenInfos, NewVotes, Output, Profiles, Proposals, Record, StakeAmounts, Token,
+        TokenInfos, Votes,
     },
     schema::{self},
 };
@@ -25,6 +28,59 @@ lazy_static! {
     pub static ref POOL: Pool<ConnectionManager<PgConnection>> = create_pg_pool().unwrap();
 }
 
+pub fn batch_insert_records(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    records: &Records,
+) -> Result<(), Error> {
+    use schema::record;
+
+    for record in records.records.iter() {
+        let inputs = record
+            .inputs
+            .iter()
+            .map(|input| Input {
+                r#type: input.r#type.clone(),
+                id: input.id.clone(),
+                value: input.value.clone(),
+                tag: input.tag.clone(),
+            })
+            .collect::<Vec<Input>>();
+
+        let outputs = record
+            .outputs
+            .iter()
+            .map(|output| Output {
+                r#type: output.r#type.clone(),
+                id: output.id.clone(),
+                checksum: output.checksum.clone(),
+                value: output.value.clone(),
+            })
+            .collect::<Vec<Output>>();
+
+        let new_record = NewRecord {
+            program: &record.program,
+            function: &record.function,
+            inputs: &serde_json::to_string(&inputs).unwrap(),
+            outputs: &serde_json::to_string(&outputs).unwrap(),
+            block_hash: &record.block_hash,
+            previous_hash: &record.previous_hash,
+            transaction_id: &record.transaction_id,
+            transition_id: &record.transition_id,
+            network: record.network as i64,
+            height: record.height as i64,
+            timestamp: record.timestamp as i64,
+        };
+
+        diesel::insert_into(record::table)
+            .values(&new_record)
+            .on_conflict(record::transition_id)
+            .do_nothing()
+            .execute(conn)?;
+    }
+
+    Ok(())
+}
+
 pub fn get_records_by_height(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     start_block: i64,
@@ -39,6 +95,92 @@ pub fn get_records_by_height(
         .expect("Error loading records");
 
     Ok(records)
+}
+
+pub fn get_record_status_by_function_name(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    function_name: String,
+) -> Result<Vec<RecordStatus>, Error> {
+    use schema::record_status::dsl::*;
+
+    let results = record_status
+        .filter(function.eq(function_name))
+        .select(RecordStatus::as_select())
+        .load(conn)
+        .expect("Error loading record_status");
+
+    Ok(results)
+}
+
+pub fn insert_record_status(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_record_status: RecordStatus,
+) -> Result<String, Error> {
+    use schema::record_status;
+
+    diesel::insert_into(record_status::table)
+        .values(&NewRecordStatus {
+            program: &param_record_status.program,
+            function: &param_record_status.function,
+            record_ciphertext: &param_record_status.record_ciphertext,
+            is_spent: param_record_status.is_spent,
+            block_hash: &param_record_status.block_hash,
+            transaction_id: &param_record_status.transaction_id,
+            transition_id: &param_record_status.transition_id,
+            network: param_record_status.network,
+            height: param_record_status.height,
+            timestamp: param_record_status.timestamp,
+        })
+        .on_conflict(record_status::record_ciphertext)
+        .do_nothing()
+        .execute(conn)?;
+
+    Ok("Insert successfully!".to_string())
+}
+
+pub fn upsert_record_status(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_record_status: RecordStatus,
+) -> Result<String, Error> {
+    use schema::record_status::dsl::*;
+
+    let results: Vec<RecordStatus> = record_status
+        .filter(record_ciphertext.eq(&param_record_status.record_ciphertext))
+        .select(RecordStatus::as_select())
+        .load(conn)
+        .expect("");
+
+    if results.is_empty() {
+        insert_record_status(conn, param_record_status)
+    } else {
+        update_record_status(conn, param_record_status)
+    }
+}
+
+pub fn update_record_status(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_record_status: RecordStatus,
+) -> Result<String, Error> {
+    use schema::record_status::dsl::*;
+
+    diesel::update(
+        record_status.filter(record_ciphertext.eq(&param_record_status.record_ciphertext)),
+    )
+    .set((
+        program.eq(&param_record_status.program),
+        function.eq(&param_record_status.function),
+        is_spent.eq(param_record_status.is_spent),
+        block_hash.eq(&param_record_status.block_hash),
+        transaction_id.eq(&param_record_status.transaction_id),
+        transition_id.eq(&param_record_status.transaction_id),
+        network.eq(param_record_status.network),
+        height.eq(param_record_status.height),
+        timestamp.eq(param_record_status.timestamp),
+    ))
+    .execute(conn)
+    .expect("Update: Error");
+
+    Ok("Update successfully!".to_string())
 }
 
 pub fn get_profile_by_address(

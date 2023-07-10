@@ -5,6 +5,7 @@ use super::schema::extend_pledge_period;
 use super::schema::profiles;
 use super::schema::proposals;
 use super::schema::record;
+use super::schema::record_status;
 use super::schema::stake_amounts;
 use super::schema::token;
 use super::schema::token_infos;
@@ -45,11 +46,43 @@ pub struct NewRecord<'a> {
     pub timestamp: i64,
 }
 
+#[derive(Queryable, Selectable, Deserialize, Serialize)]
+#[diesel(table_name = record_status)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct RecordStatus {
+    pub program: String,
+    pub function: String,
+    pub record_ciphertext: String,
+    pub is_spent: bool,
+    pub block_hash: String,
+    pub transaction_id: String,
+    pub transition_id: String,
+    pub network: i64,
+    pub height: i64,
+    pub timestamp: i64,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = record_status)]
+pub struct NewRecordStatus<'a> {
+    pub program: &'a str,
+    pub function: &'a str,
+    pub record_ciphertext: &'a str,
+    pub is_spent: bool,
+    pub block_hash: &'a str,
+    pub transaction_id: &'a str,
+    pub transition_id: &'a str,
+    pub network: i64,
+    pub height: i64,
+    pub timestamp: i64,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Input {
     pub r#type: String,
     pub id: String,
     pub value: String,
+    pub tag: String,
 }
 
 #[derive(Serialize, Deserialize)]

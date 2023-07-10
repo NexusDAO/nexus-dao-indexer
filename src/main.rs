@@ -1,20 +1,14 @@
 extern crate diesel;
 
-use crate::{
-    models::{Input, NewRecord, Output},
-    program_handler::program_handler,
-    routes::routes,
-};
+use crate::{program_handler::program_handler, routes::routes};
 use anyhow::{format_err, Context, Error};
 use clap::Parser;
 use cli::{Cli, Commands};
-use database::POOL;
-use diesel::{r2d2::ConnectionManager, PgConnection, RunQueryDsl};
+use database::{batch_insert_records, POOL};
 use futures03::StreamExt;
 use http::Method;
 use prost::Message;
 use proto::{module_output::Data as ModuleOutputData, BlockScopedData, Records};
-use r2d2::PooledConnection;
 use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
 use substreams::SubstreamsEndpoint;
 use substreams_stream::{BlockResponse, SubstreamsStream};
@@ -171,58 +165,6 @@ async fn serve(rest_api: &String, host: &String, port: &u16) {
         .serve(app.into_make_service())
         .await
         .unwrap();
-}
-
-fn batch_insert_records(
-    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    records: &Records,
-) -> Result<(), Error> {
-    use schema::record;
-
-    for record in records.records.iter() {
-        let inputs = record
-            .inputs
-            .iter()
-            .map(|input| Input {
-                r#type: input.r#type.clone(),
-                id: input.id.clone(),
-                value: input.value.clone(),
-            })
-            .collect::<Vec<Input>>();
-
-        let outputs: Vec<Output> = record
-            .outputs
-            .iter()
-            .map(|output| Output {
-                r#type: output.r#type.clone(),
-                id: output.id.clone(),
-                checksum: output.checksum.clone(),
-                value: output.value.clone(),
-            })
-            .collect::<Vec<Output>>();
-
-        let new_record = NewRecord {
-            program: &record.program,
-            function: &record.function,
-            inputs: &serde_json::to_string(&inputs).unwrap(),
-            outputs: &serde_json::to_string(&outputs).unwrap(),
-            block_hash: &record.block_hash,
-            previous_hash: &record.previous_hash,
-            transaction_id: &record.transaction_id,
-            transition_id: &record.transition_id,
-            network: record.network as i64,
-            height: record.height as i64,
-            timestamp: record.timestamp as i64,
-        };
-
-        diesel::insert_into(record::table)
-            .values(&new_record)
-            .on_conflict(record::transition_id)
-            .do_nothing()
-            .execute(conn)?;
-    }
-
-    Ok(())
 }
 
 fn extract_records(data: BlockScopedData, module_name: &String) -> Result<Option<Records>, Error> {

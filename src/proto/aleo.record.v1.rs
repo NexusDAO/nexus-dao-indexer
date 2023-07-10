@@ -38,6 +38,8 @@ pub struct Input {
     pub id: ::prost::alloc::string::String,
     #[prost(string, tag="3")]
     pub value: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub tag: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Output {

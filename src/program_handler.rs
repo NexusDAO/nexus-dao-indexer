@@ -1,9 +1,9 @@
 use crate::{
     database::{
         create_dao, create_extend_pledge_period, create_proposal, get_auto_increment_by_key,
-        insert_token_info, insert_votes, update_dao, update_proposal, update_stake_amounts,
-        update_token_info, upsert_auto_increment, upsert_balances, upsert_profile,
-        upsert_stake_amounts,
+        insert_votes, update_dao, update_proposal, update_stake_amounts, update_token_info,
+        upsert_auto_increment, upsert_balances, upsert_profile, upsert_record_status,
+        upsert_stake_amounts, upsert_token_info,
     },
     mappings::{
         AutoIncrement, Dao, ExtendPledgePeriod, HoldToken, Profile, Proposal, TokenInfo, Vote,
@@ -131,6 +131,22 @@ pub fn program_handler(
                     }
                 };
 
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
                 update_token_info(
                     conn,
                     models::TokenInfos {
@@ -187,6 +203,54 @@ pub fn program_handler(
                     }
                 };
 
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: input_token_record_ciphertext.clone(),
+                        is_spent: true,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token1_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token2_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
                 upsert_stake_amounts(
                     conn,
                     models::StakeAmounts {
@@ -226,6 +290,38 @@ pub fn program_handler(
                         continue;
                     }
                 };
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: input_token_record_ciphertext.clone(),
+                        is_spent: true,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
 
                 update_stake_amounts(
                     conn,
@@ -271,6 +367,54 @@ pub fn program_handler(
                         continue;
                     }
                 };
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: input_token_record_ciphertext.clone(),
+                        is_spent: true,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token1_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token2_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
                 upsert_balances(
                     conn,
                     models::Balances {
@@ -293,6 +437,7 @@ pub fn program_handler(
                         continue;
                     }
                 };
+
                 upsert_balances(
                     conn,
                     models::Balances {
@@ -308,12 +453,108 @@ pub fn program_handler(
                 let input_token1_record_ciphertext = &record.inputs[0].value;
                 let input_token2_record_ciphertext = &record.inputs[1].value;
                 let output_token_record_ciphertext = &record.outputs[0].value;
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: input_token1_record_ciphertext.clone(),
+                        is_spent: true,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: input_token2_record_ciphertext.clone(),
+                        is_spent: true,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
             }
 
             "split" => {
                 let input_token_record_ciphertext = &record.inputs[0].value;
                 let output_token1_record_ciphertext = &record.outputs[0].value;
                 let output_token2_record_ciphertext = &record.outputs[1].value;
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: input_token_record_ciphertext.clone(),
+                        is_spent: true,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token1_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token2_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
             }
 
             "fee" => {
@@ -358,6 +599,38 @@ pub fn program_handler(
                         continue;
                     }
                 };
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: input_token_record_ciphertext.clone(),
+                        is_spent: true,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
 
                 update_token_info(
                     conn,
@@ -490,7 +763,7 @@ pub fn program_handler(
                     }
                 };
 
-                insert_token_info(
+                upsert_token_info(
                     conn,
                     models::TokenInfos {
                         id: token_info.id as i64,
@@ -649,6 +922,39 @@ pub fn program_handler(
                         continue;
                     }
                 };
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: input_token_record_ciphertext.clone(),
+                        is_spent: true,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
                 update_proposal(
                     conn,
                     models::Proposals {
@@ -829,6 +1135,38 @@ pub fn program_handler(
                     }
                 };
 
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: input_token_record_ciphertext.clone(),
+                        is_spent: true,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
+                upsert_record_status(
+                    conn,
+                    models::RecordStatus {
+                        program: record.program.clone(),
+                        function: record.function.clone(),
+                        record_ciphertext: output_token_record_ciphertext.clone(),
+                        is_spent: false,
+                        block_hash: record.block_hash.clone(),
+                        transaction_id: record.transaction_id.clone(),
+                        transition_id: record.transition_id.clone(),
+                        network: record.network as i64,
+                        height: record.height as i64,
+                        timestamp: record.timestamp as i64,
+                    },
+                );
+
                 update_dao(
                     conn,
                     models::Daos {
@@ -936,7 +1274,7 @@ pub fn program_handler(
                     },
                 );
 
-                insert_token_info(
+                upsert_token_info(
                     conn,
                     models::TokenInfos {
                         id: token_info.id as i64,

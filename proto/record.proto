@@ -27,6 +27,7 @@ message Input{
     string type = 1;
     string id = 2;
     string value = 3;
+    string tag = 4;
 }
 
 message Output{

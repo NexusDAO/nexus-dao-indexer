@@ -95,6 +95,21 @@ diesel::table! {
 }
 
 diesel::table! {
+    record_status (record_ciphertext) {
+        record_ciphertext -> Text,
+        program -> Text,
+        function -> Text,
+        is_spent -> Bool,
+        block_hash -> Text,
+        transaction_id -> Text,
+        transition_id -> Text,
+        height -> Int8,
+        network -> Int8,
+        timestamp -> Int8,
+    }
+}
+
+diesel::table! {
     stake_amounts (key) {
         key -> Text,
         owner -> Text,
@@ -148,6 +163,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     profiles,
     proposals,
     record,
+    record_status,
     stake_amounts,
     token,
     token_infos,
