@@ -2,7 +2,7 @@ CREATE TABLE daos (
   id BIGINT PRIMARY KEY,
   name TEXT NOT NULL,
   dao_type BIGINT NOT NULL,
-  creater TEXT NOT NULL,
+  creator TEXT NOT NULL,
   token_info_id BIGINT NOT NULL,
   icon TEXT NOT NULL,
   description TEXT NOT NULL,

@@ -118,6 +118,8 @@ async fn sync(
 
     let mut conn = POOL.get().unwrap();
 
+    let program_id = env::var("ALEO_PROGRAM_ID").unwrap_or_default();
+
     loop {
         match stream.next().await {
             None => {
@@ -135,7 +137,7 @@ async fn sync(
                                 .context("insertion in db failed")
                                 .unwrap();
 
-                            program_handler(&mut conn, rest_api, &records);
+                            program_handler(&mut conn, rest_api, &records, &program_id);
                         }
                         None => {}
                     }

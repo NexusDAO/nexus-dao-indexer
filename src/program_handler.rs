@@ -2,8 +2,8 @@ use crate::{
     database::{
         create_dao, create_extend_pledge_period, create_proposal, get_auto_increment_by_key,
         insert_votes, update_dao, update_proposal, update_stake_amounts, update_token_info,
-        upsert_auto_increment, upsert_balances, upsert_profile, upsert_record_status,
-        upsert_stake_amounts, upsert_token_info,
+        upsert_auto_increment, upsert_balances, upsert_profile, upsert_stake_amounts,
+        upsert_token_info,
     },
     mappings::{
         AutoIncrement, Dao, ExtendPledgePeriod, HoldToken, Profile, Proposal, TokenInfo, Vote,
@@ -19,7 +19,6 @@ use snarkvm::prelude::{traits::ToBits, *};
 
 type CurrentNetwork = Testnet3;
 
-const PROGRAM_ID: &str = "dao222.aleo";
 const INIT_VALUE_AUTO_INCREMENT_TOKEN_INFOS: i64 = 1;
 const INIT_VALUE_AUTO_INCREMENT_PROPOSALS: i64 = 1;
 const INIT_VALUE_AUTO_INCREMENT_DAOS: i64 = 1;
@@ -81,9 +80,10 @@ pub fn program_handler(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     rest_api: &String,
     records: &Records,
+    program_id: &String,
 ) {
     for record in records.records.iter() {
-        if record.program != PROGRAM_ID {
+        if record.program != *program_id {
             continue;
         };
 
@@ -91,7 +91,6 @@ pub fn program_handler(
             "mint" => {
                 let owner = &record.finalize[0];
                 let token_info_id = &record.finalize[2];
-                let output_token_record_ciphertext = &record.outputs[0].value;
 
                 let hash_owner = bhp256_hash_address(owner).unwrap();
                 let hash_id = bhp256_hash_u64(
@@ -107,7 +106,7 @@ pub fn program_handler(
 
                 let token_info: TokenInfo = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_TOKEN_INFOS.to_string(),
                     token_infos_mapping_key,
                 ) {
@@ -120,7 +119,7 @@ pub fn program_handler(
 
                 let hold_token: HoldToken = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_BALANCES.to_string(),
                     balances_mapping_key,
                 ) {
@@ -130,22 +129,6 @@ pub fn program_handler(
                         continue;
                     }
                 };
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
 
                 update_token_info(
                     conn,
@@ -166,7 +149,7 @@ pub fn program_handler(
                     conn,
                     models::Balances {
                         key: balances_mapping_key.to_string(),
-                        owner: hold_token.token_owner,
+                        owner: owner.to_string(),
                         amount: hold_token.amount as i64,
                         token_info_id: hold_token.token_info_id as i64,
                     },
@@ -185,14 +168,11 @@ pub fn program_handler(
                 )
                 .unwrap();
 
-                let input_token_record_ciphertext = &record.inputs[0].value;
-                let output_token1_record_ciphertext = &record.outputs[0].value;
-                let output_token2_record_ciphertext = &record.outputs[1].value;
                 let stake_amounts_mapping_key = &hash_owner.add(hash_id).to_string();
 
                 let hold_token: HoldToken = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_STAKE_AMOUNTS.to_string(),
                     stake_amounts_mapping_key,
                 ) {
@@ -202,54 +182,6 @@ pub fn program_handler(
                         continue;
                     }
                 };
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: input_token_record_ciphertext.clone(),
-                        is_spent: true,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token1_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token2_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
 
                 upsert_stake_amounts(
                     conn,
@@ -274,13 +206,11 @@ pub fn program_handler(
                 )
                 .unwrap();
 
-                let input_token_record_ciphertext = &record.inputs[0].value;
-                let output_token_record_ciphertext = &record.outputs[0].value;
                 let stake_amounts_mapping_key = &hash_owner.add(hash_id).to_string();
 
                 let hold_token: HoldToken = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_STAKE_AMOUNTS.to_string(),
                     stake_amounts_mapping_key,
                 ) {
@@ -290,38 +220,6 @@ pub fn program_handler(
                         continue;
                     }
                 };
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: input_token_record_ciphertext.clone(),
-                        is_spent: true,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
 
                 update_stake_amounts(
                     conn,
@@ -349,15 +247,12 @@ pub fn program_handler(
                 let sender_hash = bhp256_hash_address(sender).unwrap();
                 let receiver_hash = bhp256_hash_address(receiver).unwrap();
 
-                let input_token_record_ciphertext = &record.inputs[0].value;
-                let output_token1_record_ciphertext = &record.outputs[0].value;
-                let output_token2_record_ciphertext = &record.outputs[1].value;
                 let sender_balances_mapping_key = &sender_hash.add(hash_id).to_string();
                 let receiver_balances_mapping_key = &receiver_hash.add(hash_id).to_string();
 
                 let sender_hold_token: HoldToken = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_BALANCES.to_string(),
                     sender_balances_mapping_key,
                 ) {
@@ -367,59 +262,12 @@ pub fn program_handler(
                         continue;
                     }
                 };
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: input_token_record_ciphertext.clone(),
-                        is_spent: true,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token1_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token2_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
 
                 upsert_balances(
                     conn,
                     models::Balances {
-                        key: sender_balances_mapping_key.clone(),
-                        owner: sender_hold_token.token_owner,
+                        key: sender_balances_mapping_key.to_string(),
+                        owner: sender.to_string(),
                         amount: sender_hold_token.amount as i64,
                         token_info_id: sender_hold_token.token_info_id as i64,
                     },
@@ -427,7 +275,7 @@ pub fn program_handler(
 
                 let receiver_hold_token: HoldToken = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_BALANCES.to_string(),
                     receiver_balances_mapping_key,
                 ) {
@@ -442,120 +290,16 @@ pub fn program_handler(
                     conn,
                     models::Balances {
                         key: receiver_balances_mapping_key.clone(),
-                        owner: receiver_hold_token.token_owner,
+                        owner: receiver.to_string(),
                         amount: receiver_hold_token.amount as i64,
                         token_info_id: receiver_hold_token.token_info_id as i64,
                     },
                 );
             }
 
-            "join" => {
-                let input_token1_record_ciphertext = &record.inputs[0].value;
-                let input_token2_record_ciphertext = &record.inputs[1].value;
-                let output_token_record_ciphertext = &record.outputs[0].value;
+            "join" => {}
 
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: input_token1_record_ciphertext.clone(),
-                        is_spent: true,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: input_token2_record_ciphertext.clone(),
-                        is_spent: true,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-            }
-
-            "split" => {
-                let input_token_record_ciphertext = &record.inputs[0].value;
-                let output_token1_record_ciphertext = &record.outputs[0].value;
-                let output_token2_record_ciphertext = &record.outputs[1].value;
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: input_token_record_ciphertext.clone(),
-                        is_spent: true,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token1_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token2_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-            }
+            "split" => {}
 
             "fee" => {
                 let owner = &record.finalize[0];
@@ -569,14 +313,12 @@ pub fn program_handler(
                 )
                 .unwrap();
 
-                let input_token_record_ciphertext = &record.inputs[0].value;
-                let output_token_record_ciphertext = &record.outputs[0].value;
                 let token_infos_mapping_key = token_info_id;
                 let balances_mapping_key = &hash_owner.add(hash_id).to_string();
 
                 let token_info: TokenInfo = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_TOKEN_INFOS.to_string(),
                     &token_infos_mapping_key,
                 ) {
@@ -589,7 +331,7 @@ pub fn program_handler(
 
                 let hold_token: HoldToken = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_BALANCES.to_string(),
                     balances_mapping_key,
                 ) {
@@ -599,38 +341,6 @@ pub fn program_handler(
                         continue;
                     }
                 };
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: input_token_record_ciphertext.clone(),
-                        is_spent: true,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
 
                 update_token_info(
                     conn,
@@ -651,7 +361,7 @@ pub fn program_handler(
                     conn,
                     models::Balances {
                         key: balances_mapping_key.clone(),
-                        owner: hold_token.token_owner,
+                        owner: owner.clone(),
                         amount: hold_token.amount as i64,
                         token_info_id: hold_token.token_info_id as i64,
                     },
@@ -663,7 +373,7 @@ pub fn program_handler(
 
                 let profile: Profile = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_PROFILES.to_string(),
                     profiles_mapping_key,
                 ) {
@@ -688,7 +398,7 @@ pub fn program_handler(
             "update_time" => {
                 let timestamp = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_AUTO_INCREMENT.to_string(),
                     &MAPPING_KEY_AUTO_INCREMENT_TIMESTAMP.to_string(),
                 ) {
@@ -739,7 +449,7 @@ pub fn program_handler(
 
                 let token_info: TokenInfo = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_TOKEN_INFOS.to_string(),
                     &format!("{}{}", token_infos_mapping_key, "u64"),
                 ) {
@@ -752,7 +462,7 @@ pub fn program_handler(
 
                 let dao: Dao = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_DAOS.to_string(),
                     &format!("{}{}", daos_mapping_key, "u64"),
                 ) {
@@ -784,7 +494,7 @@ pub fn program_handler(
                         id: dao.id as i64,
                         name: dao.name,
                         dao_type: dao.dao_type as i64,
-                        creater: dao.creator,
+                        creator: dao.creator,
                         token_info_id: dao.token_info_id as i64,
                         icon: dao.icon,
                         description: dao.description,
@@ -819,7 +529,7 @@ pub fn program_handler(
 
                 let dao: Dao = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_DAOS.to_string(),
                     daos_mapping_key,
                 ) {
@@ -835,7 +545,7 @@ pub fn program_handler(
                         id: dao.id as i64,
                         name: dao.name,
                         dao_type: dao.dao_type as i64,
-                        creater: dao.creator,
+                        creator: dao.creator,
                         token_info_id: dao.token_info_id as i64,
                         icon: dao.icon,
                         description: dao.description,
@@ -867,7 +577,7 @@ pub fn program_handler(
 
                 let proposal = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_PROPOSALS.to_string(),
                     &format!("{}{}", proposals_mapping_key, "u64"),
                 ) {
@@ -889,7 +599,7 @@ pub fn program_handler(
                         dao_id: proposal.dao_id as i64,
                         created: proposal.created as i64,
                         duration: proposal.duration as i64,
-                        proposer_type: proposal.proposal_type as i64,
+                        type_: proposal.proposal_type as i64,
                         adopt: proposal.adopt as i64,
                         reject: proposal.reject as i64,
                         status: proposal.status as i64,
@@ -906,13 +616,11 @@ pub fn program_handler(
             }
 
             "start_proposal" => {
-                let input_token_record_ciphertext = &record.inputs[2].value;
-                let output_token_record_ciphertext = &record.outputs[0].value;
                 let proposals_mapping_key = &record.finalize[1];
 
                 let proposal: Proposal = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_PROPOSALS.to_string(),
                     proposals_mapping_key,
                 ) {
@@ -922,38 +630,6 @@ pub fn program_handler(
                         continue;
                     }
                 };
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: input_token_record_ciphertext.clone(),
-                        is_spent: true,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
 
                 update_proposal(
                     conn,
@@ -966,7 +642,7 @@ pub fn program_handler(
                         dao_id: proposal.dao_id as i64,
                         created: proposal.created as i64,
                         duration: proposal.duration as i64,
-                        proposer_type: proposal.proposal_type as i64,
+                        type_: proposal.proposal_type as i64,
                         adopt: proposal.adopt as i64,
                         reject: proposal.reject as i64,
                         status: proposal.status as i64,
@@ -978,7 +654,7 @@ pub fn program_handler(
                 let proposals_mapping_key = &record.finalize[1];
                 let daos_mapping_key = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_AUTO_INCREMENT.to_string(),
                     &MAPPING_KEY_AUTO_INCREMENT_DAOS.to_string(),
                 ) {
@@ -992,7 +668,7 @@ pub fn program_handler(
 
                 let proposal: Proposal = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_PROPOSALS.to_string(),
                     &proposals_mapping_key.to_string(),
                 ) {
@@ -1005,7 +681,7 @@ pub fn program_handler(
 
                 let dao: Dao = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_DAOS.to_string(),
                     &daos_mapping_key.to_string(),
                 ) {
@@ -1018,7 +694,7 @@ pub fn program_handler(
 
                 let extend_pledge_period: ExtendPledgePeriod = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_EXTEND_PLEDGE_PERIOD.to_string(),
                     &extend_pledge_period_mapping_key.to_string(),
                 ) {
@@ -1040,7 +716,7 @@ pub fn program_handler(
                         dao_id: proposal.dao_id as i64,
                         created: proposal.created as i64,
                         duration: proposal.duration as i64,
-                        proposer_type: proposal.proposal_type as i64,
+                        type_: proposal.proposal_type as i64,
                         adopt: proposal.adopt as i64,
                         reject: proposal.reject as i64,
                         status: proposal.status as i64,
@@ -1053,7 +729,7 @@ pub fn program_handler(
                         id: dao.id as i64,
                         name: dao.name,
                         dao_type: dao.dao_type as i64,
-                        creater: dao.creator,
+                        creator: dao.creator,
                         token_info_id: dao.token_info_id as i64,
                         icon: dao.icon,
                         description: dao.description,
@@ -1076,13 +752,11 @@ pub fn program_handler(
             }
 
             "vote" => {
-                let input_token_record_ciphertext = &record.inputs[1].value;
-                let output_token_record_ciphertext = &record.outputs[0].value;
                 let proposals_mapping_key = &record.finalize[0];
 
                 let proposal: Proposal = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_PROPOSALS.to_string(),
                     &proposals_mapping_key.to_string(),
                 ) {
@@ -1096,7 +770,7 @@ pub fn program_handler(
                 let daos_mapping_key = proposal.dao_id;
                 let dao: Dao = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_DAOS.to_string(),
                     &format!("{}{}", daos_mapping_key, "u64"),
                 ) {
@@ -1124,7 +798,7 @@ pub fn program_handler(
 
                 let vote: Vote = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_VOTES.to_string(),
                     &format!("{}{}", votes_mapping_key, "u64"),
                 ) {
@@ -1135,45 +809,13 @@ pub fn program_handler(
                     }
                 };
 
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: input_token_record_ciphertext.clone(),
-                        is_spent: true,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
-                upsert_record_status(
-                    conn,
-                    models::RecordStatus {
-                        program: record.program.clone(),
-                        function: record.function.clone(),
-                        record_ciphertext: output_token_record_ciphertext.clone(),
-                        is_spent: false,
-                        block_hash: record.block_hash.clone(),
-                        transaction_id: record.transaction_id.clone(),
-                        transition_id: record.transition_id.clone(),
-                        network: record.network as i64,
-                        height: record.height as i64,
-                        timestamp: record.timestamp as i64,
-                    },
-                );
-
                 update_dao(
                     conn,
                     models::Daos {
                         id: dao.id as i64,
                         name: dao.name,
                         dao_type: dao.dao_type as i64,
-                        creater: dao.creator,
+                        creator: dao.creator,
                         token_info_id: dao.token_info_id as i64,
                         icon: dao.icon,
                         description: dao.description,
@@ -1197,7 +839,7 @@ pub fn program_handler(
                         dao_id: proposal.dao_id as i64,
                         created: proposal.created as i64,
                         duration: proposal.duration as i64,
-                        proposer_type: proposal.proposal_type as i64,
+                        type_: proposal.proposal_type as i64,
                         adopt: proposal.adopt as i64,
                         reject: proposal.reject as i64,
                         status: proposal.status as i64,
@@ -1231,7 +873,7 @@ pub fn program_handler(
 
                 let dao: Dao = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_DAOS.to_string(),
                     &daos_mapping_key.to_string(),
                 ) {
@@ -1244,7 +886,7 @@ pub fn program_handler(
 
                 let token_info: TokenInfo = match fetch_mapping(
                     rest_api,
-                    &PROGRAM_ID.to_string(),
+                    program_id,
                     &MAPPING_NAME_TOKEN_INFOS.to_string(),
                     &token_infos_mapping_key.to_string(),
                 ) {
@@ -1261,7 +903,7 @@ pub fn program_handler(
                         id: dao.id as i64,
                         name: dao.name,
                         dao_type: dao.dao_type as i64,
-                        creater: dao.creator,
+                        creator: dao.creator,
                         token_info_id: dao.token_info_id as i64,
                         icon: dao.icon,
                         description: dao.description,

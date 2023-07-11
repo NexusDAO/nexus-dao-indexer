@@ -9,8 +9,8 @@ message Proposal {
     string summary = 4;
     string body = 5;
     uint64 dao_id = 6;
-    uint64 created = 7;
-    uint64 duration = 8;
+    uint32 created = 7;
+    uint32 duration = 8;
     uint32 proposal_type = 9;
     uint64 adopt = 10;
     uint64 reject = 11;
@@ -26,7 +26,7 @@ message Profile {
 message DAOSchema {
     string name = 1;
     uint32 dao_type = 2;
-    string creater = 3;
+    string creator = 3;
     string icon = 4;
     string description = 5;
     string official_link = 6;
@@ -53,7 +53,7 @@ message Token {
     uint64 gates = 2;
     uint64 token_info_id = 3;
     uint64 amount = 4;
-    uint64 expires = 5;
+    uint32 expires = 5;
     uint64 staked_at = 6;
 }
 

@@ -21,7 +21,7 @@ diesel::table! {
         id -> Int8,
         name -> Text,
         dao_type -> Int8,
-        creater -> Text,
+        creator -> Text,
         token_info_id -> Int8,
         icon -> Text,
         description -> Text,
@@ -38,7 +38,7 @@ diesel::table! {
     daos_schema (name) {
         name -> Text,
         dao_type -> Int8,
-        creater -> Text,
+        creator -> Text,
         icon -> Text,
         description -> Text,
         official_link -> Text,
@@ -71,7 +71,8 @@ diesel::table! {
         dao_id -> Int8,
         created -> Int8,
         duration -> Int8,
-        proposer_type -> Int8,
+        #[sql_name = "type"]
+        type_ -> Int8,
         adopt -> Int8,
         reject -> Int8,
         status -> Int8,
@@ -90,21 +91,6 @@ diesel::table! {
         transaction_id -> Text,
         network -> Int8,
         height -> Int8,
-        timestamp -> Int8,
-    }
-}
-
-diesel::table! {
-    record_status (record_ciphertext) {
-        record_ciphertext -> Text,
-        program -> Text,
-        function -> Text,
-        is_spent -> Bool,
-        block_hash -> Text,
-        transaction_id -> Text,
-        transition_id -> Text,
-        height -> Int8,
-        network -> Int8,
         timestamp -> Int8,
     }
 }
@@ -163,7 +149,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     profiles,
     proposals,
     record,
-    record_status,
     stake_amounts,
     token,
     token_infos,

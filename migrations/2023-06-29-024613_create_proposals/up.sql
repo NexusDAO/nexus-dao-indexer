@@ -7,8 +7,8 @@ CREATE TABLE proposals (
   dao_id BIGINT  NOT NULL,
   created BIGINT NOT NULL,
   duration BIGINT NOT NULL,
-  proposer_type BIGINT NOT NULL,
+  type BIGINT NOT NULL,
   adopt BIGINT  NOT NULL,
   reject BIGINT NOT NULL,
-  status BIGINT NOT NULL  
+  status BIGINT NOT NULL
 );

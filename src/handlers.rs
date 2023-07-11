@@ -1,15 +1,20 @@
+use crate::database::{get_balances_by_owner, get_token_info_by_id};
+use crate::mappings::Token;
 use crate::models::{Balances, StakeAmounts};
 use crate::{
     database::{
-        get_all_dao_ids, get_all_proposal_ids, get_balances_by_key, get_creating_dao_proposal_ids,
-        get_dao_by_id, get_dao_proposal_ids_by_dao_id, get_funds_total, get_pledgers_total,
+        get_all_dao_ids, get_all_proposal_ids, get_creating_dao_proposal_ids, get_dao_by_id,
+        get_dao_proposal_ids_by_dao_id, get_funds_total, get_pledgers_total,
         get_profile_by_address, get_proposals_by_proposal_id, get_records_by_height,
-        get_stake_funds_total, get_stakes_by_key, insert_profile, insert_token_info,
+        get_stake_funds_total, get_stakes_by_owner, insert_profile, insert_token_info,
         update_profile, upsert_profile, POOL,
     },
     models::{Daos, Input, Output, Profiles, Proposals, RespRecords, TokenInfos},
 };
-use axum::{extract::Query, response::Json};
+use axum::{
+    extract::{Json as PostJson, Path, Query},
+    response::Json,
+};
 use diesel::{r2d2::ConnectionManager, PgConnection};
 use r2d2::PooledConnection;
 use std::{collections::HashMap, str::FromStr};
@@ -59,12 +64,10 @@ pub async fn records_handler(
     Json(results)
 }
 
-pub async fn get_profile_handler(Query(params): Query<HashMap<String, String>>) -> Json<Profiles> {
+pub async fn get_profile_handler(Path(address): Path<String>) -> Json<Profiles> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
 
-    let address = params.get("address").unwrap();
-
-    let profiles = get_profile_by_address(&mut conn, address.to_string()).unwrap();
+    let profiles = get_profile_by_address(&mut conn, address).unwrap();
 
     Json(profiles)
 }
@@ -82,7 +85,7 @@ pub async fn batch_get_dao_handler(
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
     let mut ret_vec_dao: Vec<Daos> = Vec::new();
     let id_array: Vec<String> =
-        serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
+        serde_json::from_str(&params.get("id-array").unwrap().to_string()).unwrap();
 
     for id in id_array {
         let parsed_id = string_to_i64(&id);
@@ -96,7 +99,7 @@ pub async fn batch_get_dao_handler(
                     id: 0,
                     name: "".to_string(),
                     dao_type: 0,
-                    creater: "".to_string(),
+                    creator: "".to_string(),
                     token_info_id: 0,
                     icon: "".to_string(),
                     description: "".to_string(),
@@ -115,13 +118,13 @@ pub async fn batch_get_dao_handler(
     Json(ret_vec_dao)
 }
 
-pub async fn batch_get_governance_token_ids_handler(
+pub async fn batch_get_token_id_of_dao_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> Json<Vec<String>> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
     let mut ret_token_ids: Vec<String> = Vec::new();
     let id_array: Vec<String> =
-        serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
+        serde_json::from_str(&params.get("dao-id-array").unwrap().to_string()).unwrap();
 
     for id in id_array {
         let parsed_id = string_to_i64(&id);
@@ -138,14 +141,14 @@ pub async fn batch_get_governance_token_ids_handler(
     Json(ret_token_ids)
 }
 
-pub async fn batch_get_dao_proposal_ids_handler(
+pub async fn batch_get_proposal_id_of_dao_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> Json<Vec<Vec<String>>> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
     let mut ret_proposal_ids: Vec<Vec<String>> = Vec::new();
 
     let id_array: Vec<String> =
-        serde_json::from_str(&params.get("dao_id_array").unwrap().to_string()).unwrap();
+        serde_json::from_str(&params.get("dao-id-array").unwrap().to_string()).unwrap();
 
     for id in id_array {
         let parsed_id = string_to_i64(&id);
@@ -161,22 +164,51 @@ pub async fn batch_get_dao_proposal_ids_handler(
     Json(ret_proposal_ids)
 }
 
-pub async fn batch_get_balances_handler(
+pub async fn batch_get_token_info_handler(
     Query(params): Query<HashMap<String, String>>,
-) -> Json<Vec<Balances>> {
+) -> Json<Vec<TokenInfos>> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
-    let key = params.get("key").unwrap();
-    let ret_blances = get_balances_by_key(&mut conn, key.to_string()).unwrap();
+    let mut ret_token_infos: Vec<TokenInfos> = Vec::new();
+    let id_array: Vec<String> =
+        serde_json::from_str(&params.get("id-array").unwrap().to_string()).unwrap();
 
-    Json(ret_blances)
+    for id in id_array {
+        let parsed_id = string_to_i64(&id);
+        let token_info = get_token_info_by_id(&mut conn, parsed_id);
+        match token_info {
+            Ok(token_info) => {
+                ret_token_infos.push(token_info);
+            }
+            Err(err) => {
+                ret_token_infos.push(TokenInfos {
+                    id: 0,
+                    name: "".to_string(),
+                    symbol: "".to_string(),
+                    supply: 0,
+                    decimals: 0,
+                    max_mint_amount: 0,
+                    minted_amount: 0,
+                    dao_id: 0,
+                    only_creator_can_mint: false,
+                });
+            }
+        }
+    }
+
+    Json(ret_token_infos)
 }
 
-pub async fn batch_get_stakes_handler(
-    Query(params): Query<HashMap<String, String>>,
-) -> Json<Vec<StakeAmounts>> {
+pub async fn get_balances_handler(Path(address): Path<String>) -> Json<Vec<Balances>> {
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
-    let key = params.get("key").unwrap();
-    let ret_stakes = get_stakes_by_key(&mut conn, key.to_string()).unwrap();
+
+    let ret_balances = get_balances_by_owner(&mut conn, address).unwrap();
+
+    Json(ret_balances)
+}
+
+pub async fn batch_get_stakes_handler(Path(address): Path<String>) -> Json<Vec<StakeAmounts>> {
+    let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
+    let ret_stakes = get_stakes_by_owner(&mut conn, address).unwrap();
 
     Json(ret_stakes)
 }
@@ -211,7 +243,7 @@ pub async fn batch_get_proposals_handler(
     let mut conn: PooledConnection<ConnectionManager<PgConnection>> = POOL.get().unwrap();
     let mut ret_proposals: Vec<Proposals> = Vec::new();
     let proposal_id_array: Vec<String> =
-        serde_json::from_str(&params.get("proposal_id_array").unwrap().to_string()).unwrap();
+        serde_json::from_str(&params.get("id-array").unwrap().to_string()).unwrap();
     for id in proposal_id_array {
         let parse_id = string_to_i64(&id);
         let proposal = get_proposals_by_proposal_id(&mut conn, parse_id);
@@ -227,7 +259,7 @@ pub async fn batch_get_proposals_handler(
                     dao_id: 0,
                     created: 0,
                     duration: 0,
-                    proposer_type: 0,
+                    type_: 0,
                     adopt: 0,
                     reject: 0,
                     status: 0,

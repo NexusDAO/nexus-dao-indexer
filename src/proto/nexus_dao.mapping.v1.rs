@@ -12,10 +12,10 @@ pub struct Proposal {
     pub body: ::prost::alloc::string::String,
     #[prost(uint64, tag="6")]
     pub dao_id: u64,
-    #[prost(uint64, tag="7")]
-    pub created: u64,
-    #[prost(uint64, tag="8")]
-    pub duration: u64,
+    #[prost(uint32, tag="7")]
+    pub created: u32,
+    #[prost(uint32, tag="8")]
+    pub duration: u32,
     #[prost(uint32, tag="9")]
     pub proposal_type: u32,
     #[prost(uint64, tag="10")]
@@ -41,7 +41,7 @@ pub struct DaoSchema {
     #[prost(uint32, tag="2")]
     pub dao_type: u32,
     #[prost(string, tag="3")]
-    pub creater: ::prost::alloc::string::String,
+    pub creator: ::prost::alloc::string::String,
     #[prost(string, tag="4")]
     pub icon: ::prost::alloc::string::String,
     #[prost(string, tag="5")]
@@ -88,8 +88,8 @@ pub struct Token {
     pub token_info_id: u64,
     #[prost(uint64, tag="4")]
     pub amount: u64,
-    #[prost(uint64, tag="5")]
-    pub expires: u64,
+    #[prost(uint32, tag="5")]
+    pub expires: u32,
     #[prost(uint64, tag="6")]
     pub staked_at: u64,
 }

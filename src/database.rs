@@ -1,8 +1,7 @@
-use crate::models::{NewRecord, NewRecordStatus, RecordStatus};
+use crate::models::NewRecord;
 use crate::proto::Records;
 use crate::schema::balances::dsl::balances;
 use crate::schema::balances::key;
-use crate::schema::record_status::record_ciphertext;
 use crate::{
     models::{
         AutoIncrement, Balances, Daos, ExtendPledgePeriod, Input, NewAutoIncrement, NewBalances,
@@ -97,92 +96,6 @@ pub fn get_records_by_height(
     Ok(records)
 }
 
-pub fn get_record_status_by_function_name(
-    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    function_name: String,
-) -> Result<Vec<RecordStatus>, Error> {
-    use schema::record_status::dsl::*;
-
-    let results = record_status
-        .filter(function.eq(function_name))
-        .select(RecordStatus::as_select())
-        .load(conn)
-        .expect("Error loading record_status");
-
-    Ok(results)
-}
-
-pub fn insert_record_status(
-    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    param_record_status: RecordStatus,
-) -> Result<String, Error> {
-    use schema::record_status;
-
-    diesel::insert_into(record_status::table)
-        .values(&NewRecordStatus {
-            program: &param_record_status.program,
-            function: &param_record_status.function,
-            record_ciphertext: &param_record_status.record_ciphertext,
-            is_spent: param_record_status.is_spent,
-            block_hash: &param_record_status.block_hash,
-            transaction_id: &param_record_status.transaction_id,
-            transition_id: &param_record_status.transition_id,
-            network: param_record_status.network,
-            height: param_record_status.height,
-            timestamp: param_record_status.timestamp,
-        })
-        .on_conflict(record_status::record_ciphertext)
-        .do_nothing()
-        .execute(conn)?;
-
-    Ok("Insert successfully!".to_string())
-}
-
-pub fn upsert_record_status(
-    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    param_record_status: RecordStatus,
-) -> Result<String, Error> {
-    use schema::record_status::dsl::*;
-
-    let results: Vec<RecordStatus> = record_status
-        .filter(record_ciphertext.eq(&param_record_status.record_ciphertext))
-        .select(RecordStatus::as_select())
-        .load(conn)
-        .expect("");
-
-    if results.is_empty() {
-        insert_record_status(conn, param_record_status)
-    } else {
-        update_record_status(conn, param_record_status)
-    }
-}
-
-pub fn update_record_status(
-    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    param_record_status: RecordStatus,
-) -> Result<String, Error> {
-    use schema::record_status::dsl::*;
-
-    diesel::update(
-        record_status.filter(record_ciphertext.eq(&param_record_status.record_ciphertext)),
-    )
-    .set((
-        program.eq(&param_record_status.program),
-        function.eq(&param_record_status.function),
-        is_spent.eq(param_record_status.is_spent),
-        block_hash.eq(&param_record_status.block_hash),
-        transaction_id.eq(&param_record_status.transaction_id),
-        transition_id.eq(&param_record_status.transaction_id),
-        network.eq(param_record_status.network),
-        height.eq(param_record_status.height),
-        timestamp.eq(param_record_status.timestamp),
-    ))
-    .execute(conn)
-    .expect("Update: Error");
-
-    Ok("Update successfully!".to_string())
-}
-
 pub fn get_profile_by_address(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     addr: String,
@@ -234,6 +147,25 @@ pub fn get_dao_by_id(
     return Err(Error::msg("The dao was not found"));
 }
 
+pub fn get_token_info_by_id(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    token_info_id: i64,
+) -> Result<TokenInfos, Error> {
+    use schema::token_infos::dsl::*;
+
+    let mut ret_token_infos: Vec<TokenInfos> = token_infos
+        .filter(id.eq(token_info_id))
+        .select(TokenInfos::as_select())
+        .load(conn)
+        .expect("Error loading token_infos");
+
+    let ret_token_infos_op = ret_token_infos.pop();
+    if ret_token_infos_op.is_some() {
+        return Ok(ret_token_infos_op.unwrap());
+    }
+    return Err(Error::msg("The dao was not found"));
+}
+
 pub fn get_dao_proposal_ids_by_dao_id(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_id: i64,
@@ -258,14 +190,14 @@ pub fn get_dao_proposal_ids_by_dao_id(
     Ok(ret_proposal_ids)
 }
 
-pub fn get_balances_by_key(
+pub fn get_balances_by_owner(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    param_key: String,
+    param_owner: String,
 ) -> Result<Vec<Balances>, Error> {
     use schema::balances::dsl::*;
 
     let ret_balances: Vec<Balances> = balances
-        .filter(key.eq(param_key))
+        .filter(owner.eq(param_owner))
         .select(Balances::as_select())
         .load(conn)
         .expect("Error loading balances");
@@ -273,14 +205,14 @@ pub fn get_balances_by_key(
     Ok(ret_balances)
 }
 
-pub fn get_stakes_by_key(
+pub fn get_stakes_by_owner(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    param_key: String,
+    param_owner: String,
 ) -> Result<Vec<StakeAmounts>, Error> {
     use schema::stake_amounts::dsl::*;
 
     let ret_stakes: Vec<StakeAmounts> = stake_amounts
-        .filter(key.eq(param_key))
+        .filter(owner.eq(param_owner))
         .select(StakeAmounts::as_select())
         .load(conn)
         .expect("Error loading balances");
@@ -417,7 +349,12 @@ pub fn get_creating_dao_proposal_ids(
     use schema::proposals::dsl::*;
     let mut ret_prop_id: Vec<String> = Vec::new();
     let prop: Vec<i64> = proposals
-        .filter(duration.eq(0).and(status.eq(0).or(status.eq(1))))
+        .filter(
+            duration
+                .eq(0)
+                .and(status.eq(0).or(status.eq(1)))
+                .and(type_.eq(0)),
+        )
         .select(id)
         .load(conn)
         .expect("Error loading stakes");
@@ -776,7 +713,7 @@ pub fn create_dao(
         id: param_dao.id,
         name: &param_dao.name,
         dao_type: param_dao.dao_type,
-        creater: &param_dao.creater,
+        creator: &param_dao.creator,
         token_info_id: param_dao.token_info_id,
         icon: &param_dao.icon,
         description: &param_dao.description,
@@ -827,7 +764,7 @@ pub fn update_dao(
         .set((
             name.eq(param_dao.name),
             dao_type.eq(param_dao.dao_type),
-            creater.eq(param_dao.creater),
+            creator.eq(param_dao.creator),
             token_info_id.eq(param_dao.token_info_id),
             icon.eq(param_dao.icon),
             description.eq(param_dao.description),
@@ -859,7 +796,7 @@ pub fn create_proposal(
         dao_id: param_proposal.dao_id,
         created: param_proposal.created,
         duration: param_proposal.duration,
-        proposer_type: param_proposal.proposer_type,
+        type_: param_proposal.type_,
         adopt: param_proposal.adopt,
         reject: param_proposal.reject,
         status: param_proposal.status,
@@ -910,7 +847,7 @@ pub fn update_proposal(
             dao_id.eq(param_proposal.dao_id),
             created.eq(param_proposal.created),
             duration.eq(param_proposal.duration),
-            proposer_type.eq(param_proposal.proposer_type),
+            type_.eq(param_proposal.type_),
             adopt.eq(param_proposal.adopt),
             reject.eq(param_proposal.reject),
             status.eq(param_proposal.status),

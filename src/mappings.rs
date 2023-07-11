@@ -20,8 +20,8 @@ pub struct Proposal {
     pub summary: String,
     pub body: String,
     pub dao_id: u64,
-    pub created: u64,
-    pub duration: u64,
+    pub created: u32,
+    pub duration: u32,
     pub proposal_type: u8,
     pub adopt: u64,
     pub reject: u64,
@@ -38,8 +38,8 @@ impl Proposal {
             summary: data["summary"].trim_end_matches("field").to_string(),
             body: data["body"].trim_end_matches("field").to_string(),
             dao_id: data["dao_id"].trim_end_matches("u64").parse::<u64>()?,
-            created: data["created"].trim_end_matches("u64").parse::<u64>()?,
-            duration: data["duration"].trim_end_matches("u64").parse::<u64>()?,
+            created: data["created"].trim_end_matches("u32").parse::<u32>()?,
+            duration: data["duration"].trim_end_matches("u32").parse::<u32>()?,
             proposal_type: data["proposal_type"].trim_end_matches("u8").parse::<u8>()?,
             adopt: data["adopt"].trim_end_matches("u64").parse::<u64>()?,
             reject: data["reject"].trim_end_matches("u64").parse::<u64>()?,
@@ -120,7 +120,7 @@ pub struct Token {
     pub gates: u64,
     pub token_info_id: u64,
     pub amount: u64,
-    pub expires: u64,
+    pub expires: u32,
     pub staked_at: u64,
 }
 
@@ -134,7 +134,7 @@ impl Token {
                 .trim_end_matches("u64")
                 .parse::<u64>()?,
             amount: data["amount"].trim_end_matches("u64").parse::<u64>()?,
-            expires: data["expires"].trim_end_matches("u64").parse::<u64>()?,
+            expires: data["expires"].trim_end_matches("u32").parse::<u32>()?,
             staked_at: data["staked_at"].trim_end_matches("u64").parse::<u64>()?,
         })
     }
@@ -199,7 +199,7 @@ pub struct Vote {
     pub voter: String,
     pub proposal_id: u64,
     pub is_agreed: bool,
-    pub time: u64,
+    pub time: u32,
     pub amount: u64,
 }
 
@@ -210,7 +210,7 @@ impl Vote {
             voter: data["voter"].trim_end_matches("field").to_string(),
             proposal_id: data["proposal_id"].trim_end_matches("u64").parse::<u64>()?,
             is_agreed: data["is_agreed"].parse::<bool>()?,
-            time: data["time"].trim_end_matches("u64").parse::<u64>()?,
+            time: data["time"].trim_end_matches("u32").parse::<u32>()?,
             amount: data["amount"].trim_end_matches("u64").parse::<u64>()?,
         })
     }
