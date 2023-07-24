@@ -117,15 +117,11 @@ pub fn get_profile_by_address(
 
 pub fn get_all_dao_ids(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-) -> Result<Vec<String>, Error> {
+) -> Result<Vec<i64>, Error> {
     use schema::daos::dsl::*;
-    let mut ret_dao_ids: Vec<String> = Vec::new();
     let dao_ids: Vec<i64> = daos.select(id).load(conn).expect("Error loading records");
 
-    for i in dao_ids {
-        ret_dao_ids.push(i.to_string())
-    }
-    Ok(ret_dao_ids)
+    Ok(dao_ids)
 }
 
 pub fn get_dao_by_id(
@@ -169,9 +165,9 @@ pub fn get_token_info_by_id(
 pub fn get_dao_proposal_ids_by_dao_id(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     param_id: i64,
-) -> Result<Vec<String>, Error> {
+) -> Result<Vec<i64>, Error> {
     use schema::proposals::dsl::*;
-    let mut ret_proposal_ids: Vec<String> = Vec::new();
+    let mut ret_proposal_ids: Vec<i64> = Vec::new();
 
     let prop: Vec<i64> = proposals
         .filter(dao_id.eq(param_id))
@@ -184,7 +180,7 @@ pub fn get_dao_proposal_ids_by_dao_id(
     }
 
     for i in prop {
-        ret_proposal_ids.push(i.to_string())
+        ret_proposal_ids.push(i)
     }
 
     Ok(ret_proposal_ids)
@@ -292,6 +288,22 @@ pub fn get_extend_pledge_period_by_key(
     Ok(ret_extend_pledge_period.pop().unwrap())
 }
 
+pub fn get_pledgers_by_token_info_id(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    param_token_info_id: i64,
+) -> Result<i64, Error> {
+    use schema::stake_amounts::dsl::*;
+
+    let stake: Vec<StakeAmounts> = stake_amounts
+        .filter(token_info_id.eq(param_token_info_id))
+        .select(StakeAmounts::as_select())
+        .distinct_on(owner)
+        .load(conn)
+        .expect("Error loading stakes");
+
+    Ok(stake.len().to_string().parse::<i64>().unwrap())
+}
+
 pub fn get_pledgers_total(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
 ) -> Result<String, Error> {
@@ -345,9 +357,8 @@ pub fn get_funds_total(
 
 pub fn get_creating_dao_proposal_ids(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-) -> Result<Vec<String>, Error> {
+) -> Result<Vec<i64>, Error> {
     use schema::proposals::dsl::*;
-    let mut ret_prop_id: Vec<String> = Vec::new();
     let prop: Vec<i64> = proposals
         .filter(
             duration
@@ -359,10 +370,7 @@ pub fn get_creating_dao_proposal_ids(
         .load(conn)
         .expect("Error loading stakes");
 
-    for i in prop {
-        ret_prop_id.push(i.to_string())
-    }
-    Ok(ret_prop_id)
+    Ok(prop)
 }
 
 pub fn get_proposals_by_proposal_id(
@@ -388,20 +396,15 @@ pub fn get_proposals_by_proposal_id(
 
 pub fn get_all_proposal_ids(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-) -> Result<Vec<String>, Error> {
+) -> Result<Vec<i64>, Error> {
     use schema::proposals::dsl::*;
-    let mut ret_proposal_ids: Vec<String> = Vec::new();
 
     let prop: Vec<i64> = proposals
         .select(id)
         .load(conn)
         .expect("The proposal was not found");
 
-    for i in prop {
-        ret_proposal_ids.push(i.to_string())
-    }
-
-    Ok(ret_proposal_ids)
+    Ok(prop)
 }
 
 fn create_pg_pool() -> Result<PgPool, PoolError> {

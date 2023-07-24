@@ -1,9 +1,8 @@
 use crate::{
     database::{
         create_dao, create_extend_pledge_period, create_proposal, get_auto_increment_by_key,
-        insert_votes, update_dao, update_proposal, update_stake_amounts, update_token_info,
-        upsert_auto_increment, upsert_balances, upsert_profile, upsert_stake_amounts,
-        upsert_token_info,
+        insert_votes, update_dao, update_proposal, update_token_info, upsert_auto_increment,
+        upsert_balances, upsert_profile, upsert_stake_amounts, upsert_token_info,
     },
     mappings::{
         AutoIncrement, Dao, ExtendPledgePeriod, HoldToken, Profile, Proposal, TokenInfo, Vote,
@@ -43,7 +42,7 @@ const MAPPING_NAME_PROPOSALS: &str = "proposals";
 const MAPPING_NAME_VOTES: &str = "votes";
 const MAPPING_NAME_EXTEND_PLEDGE_PERIOD: &str = "extend_pledge_period";
 
-fn bhp256_hash_address(addr: &String) -> Result<Field<Testnet3>, Error> {
+pub fn bhp256_hash_address(addr: &String) -> Result<Field<Testnet3>, Error> {
     let field = Testnet3::hash_bhp256(
         &Plaintext::from(Literal::Address(
             Address::<Testnet3>::parse(addr).unwrap().1,
@@ -53,7 +52,7 @@ fn bhp256_hash_address(addr: &String) -> Result<Field<Testnet3>, Error> {
     Ok(field)
 }
 
-fn bhp256_hash_u64(value: u64) -> Result<Field<Testnet3>, Error> {
+pub fn bhp256_hash_u64(value: u64) -> Result<Field<Testnet3>, Error> {
     let plaintext: Plaintext<Testnet3> = Plaintext::from(Literal::U64(U64::new(value)));
     let field = Testnet3::hash_bhp256(&plaintext.to_bits_le())?;
     Ok(field)
@@ -186,7 +185,7 @@ pub fn program_handler(
                 upsert_stake_amounts(
                     conn,
                     models::StakeAmounts {
-                        key: stake_amounts_mapping_key.clone(),
+                        key: stake_amounts_mapping_key.to_string(),
                         owner: hold_token.token_owner,
                         amount: hold_token.amount as i64,
                         token_info_id: hold_token.token_info_id as i64,
@@ -221,10 +220,10 @@ pub fn program_handler(
                     }
                 };
 
-                update_stake_amounts(
+                upsert_stake_amounts(
                     conn,
                     models::StakeAmounts {
-                        key: stake_amounts_mapping_key.clone(),
+                        key: stake_amounts_mapping_key.to_string(),
                         owner: hold_token.token_owner,
                         amount: hold_token.amount as i64,
                         token_info_id: hold_token.token_info_id as i64,
@@ -683,7 +682,7 @@ pub fn program_handler(
                     rest_api,
                     program_id,
                     &MAPPING_NAME_DAOS.to_string(),
-                    &daos_mapping_key.to_string(),
+                    &format!("{}{}", daos_mapping_key, "u64"),
                 ) {
                     Ok(data) => Dao::from_mapping_value(&data).unwrap(),
                     Err(err) => {
@@ -875,7 +874,7 @@ pub fn program_handler(
                     rest_api,
                     program_id,
                     &MAPPING_NAME_DAOS.to_string(),
-                    &daos_mapping_key.to_string(),
+                    &format!("{}{}", daos_mapping_key, "u64"),
                 ) {
                     Ok(data) => Dao::from_mapping_value(&data).unwrap(),
                     Err(err) => {
@@ -888,7 +887,7 @@ pub fn program_handler(
                     rest_api,
                     program_id,
                     &MAPPING_NAME_TOKEN_INFOS.to_string(),
-                    &token_infos_mapping_key.to_string(),
+                    &format!("{}{}", token_infos_mapping_key, "u64"),
                 ) {
                     Ok(data) => TokenInfo::from_mapping_value(&data).unwrap(),
                     Err(err) => {

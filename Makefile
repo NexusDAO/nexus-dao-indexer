@@ -4,7 +4,7 @@ START_BLOCK ?= 0
 PACKAGE_FILE ?= ./substreams-nexus-dao-v0.1.0.spkg
 MODULE_NAME ?= map_records
 HOST ?= 127.0.0.1
-PORT ?= 8080
+PORT ?= 8081
 
 .PHONY: build
 build:
