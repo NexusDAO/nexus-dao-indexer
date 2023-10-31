@@ -1,25 +1,23 @@
 extern crate diesel;
 
-use crate::{program_handler::program_handler, routes::routes};
+use crate::database::insert_ratify;
+use crate::models::NewRatify;
+use crate::routes::router;
 use anyhow::{format_err, Context, Error};
 use clap::Parser;
 use cli::{Cli, Commands};
-use database::{batch_insert_records, POOL};
 use futures03::StreamExt;
-use http::Method;
 use prost::Message;
-use proto::{module_output::Data as ModuleOutputData, BlockScopedData, Records};
+use proto::{module_output::Data as ModuleOutputData, BlockScopedData, Ratifications};
 use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
 use substreams::SubstreamsEndpoint;
 use substreams_stream::{BlockResponse, SubstreamsStream};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer};
 
 mod cli;
 mod database;
 mod handlers;
-mod mappings;
 mod models;
-mod program_handler;
 mod proto;
 mod routes;
 mod schema;
@@ -32,7 +30,6 @@ async fn main() {
 
     match &cli.command {
         Some(Commands::Sync {
-            rest_api,
             endpoint_url,
             package_file,
             module_name,
@@ -40,7 +37,6 @@ async fn main() {
             end_block,
         }) => {
             sync(
-                rest_api,
                 endpoint_url,
                 package_file,
                 module_name,
@@ -50,16 +46,11 @@ async fn main() {
             .await;
         }
 
-        Some(Commands::Serve {
-            rest_api,
-            port,
-            host,
-        }) => {
-            serve(rest_api, host, port).await;
+        Some(Commands::Serve { port, host }) => {
+            serve(host, port).await;
         }
 
         Some(Commands::All {
-            rest_api,
             endpoint_url,
             package_file,
             module_name,
@@ -70,14 +61,13 @@ async fn main() {
         }) => {
             tokio::join!(
                 sync(
-                    rest_api,
                     endpoint_url,
                     package_file,
                     module_name,
                     start_block,
                     end_block,
                 ),
-                serve(rest_api, host, port),
+                serve(host, port),
             );
         }
 
@@ -86,7 +76,6 @@ async fn main() {
 }
 
 async fn sync(
-    rest_api: &String,
     endpoint_url: &String,
     package_file: &String,
     module_name: &String,
@@ -116,10 +105,6 @@ async fn sync(
         *end_block,
     );
 
-    let mut conn = POOL.get().unwrap();
-
-    let program_id = env::var("ALEO_PROGRAM_ID").unwrap_or_default();
-
     loop {
         match stream.next().await {
             None => {
@@ -131,35 +116,62 @@ async fn sync(
                 Ok(BlockResponse::New(data)) => {
                     println!("Consuming module output (cursor {})", data.cursor);
 
-                    match extract_records(data, &module_name).unwrap() {
-                        Some(records) => {
-                            batch_insert_records(&mut conn, &records)
+                    if let Some(Ratifications { ratifications }) =
+                        extract_ratifications(data, &module_name).unwrap()
+                    {
+                        ratifications.into_iter().for_each(|ratify| {
+                            let starting_round = if ratify.starting_round.is_some() {
+                                Some(ratify.starting_round.unwrap().to_string())
+                            } else {
+                                None
+                            };
+                            let total_stake = if ratify.total_stake.is_some() {
+                                Some(ratify.total_stake.unwrap().to_string())
+                            } else {
+                                None
+                            };
+                            let block_reward = if ratify.block_reward.is_some() {
+                                Some(ratify.block_reward.unwrap().to_string())
+                            } else {
+                                None
+                            };
+                            let puzzle_reward = if ratify.puzzle_reward.is_some() {
+                                Some(ratify.puzzle_reward.unwrap().to_string())
+                            } else {
+                                None
+                            };
+
+                            let new_ratify = NewRatify {
+                                ratification_id: &ratify.id,
+                                height: i64::from(ratify.height),
+                                type_: &ratify.r#type,
+                                starting_round: starting_round.as_deref(),
+                                total_stake: total_stake.as_deref(),
+                                block_reward: block_reward.as_deref(),
+                                puzzle_reward: puzzle_reward.as_deref(),
+                            };
+                            insert_ratify(new_ratify)
                                 .context("insertion in db failed")
                                 .unwrap();
-
-                            program_handler(&mut conn, rest_api, &records, &program_id);
-                        }
-                        None => {}
+                        });
                     }
-
-                    // FIXME: Handling of the cursor is missing here. It should be saved each time
-                    // a full block has been correctly inserted in the database. By saving it
-                    // in the database, we ensure that if we crash, on startup we are going to
-                    // read it back from database and start back our SubstreamsStream with it
-                    // ensuring we are continuously streaming without ever losing a single
-                    // element.
-                }
+                } // FIXME: Handling of the cursor is missing here. It should be saved each time
+                  // a full block has been correctly inserted in the database. By saving it
+                  // in the database, we ensure that if we crash, on startup we are going to
+                  // read it back from database and start back our SubstreamsStream with it
+                  // ensuring we are continuously streaming without ever losing a single
+                  // element.
             },
         }
     }
 }
 
-async fn serve(rest_api: &String, host: &String, port: &u16) {
-    let app = routes().layer(
+async fn serve(host: &String, port: &u16) {
+    let app = router().layer(
         CorsLayer::new()
-            .allow_methods([Method::GET])
-            .allow_origin(Any)
-            .allow_headers(Any),
+            .allow_origin(AllowOrigin::any())
+            .allow_methods(AllowMethods::any())
+            .allow_headers(AllowHeaders::any()),
     );
     let addr = SocketAddr::from_str(&format!("{}:{}", host, port)).unwrap();
     println!("listening on {}", addr);
@@ -169,7 +181,10 @@ async fn serve(rest_api: &String, host: &String, port: &u16) {
         .unwrap();
 }
 
-fn extract_records(data: BlockScopedData, module_name: &String) -> Result<Option<Records>, Error> {
+fn extract_ratifications(
+    data: BlockScopedData,
+    module_name: &String,
+) -> Result<Option<Ratifications>, Error> {
     let output = data
         .outputs
         .first()
@@ -183,8 +198,8 @@ fn extract_records(data: BlockScopedData, module_name: &String) -> Result<Option
     }
     match output.data.as_ref().unwrap() {
         ModuleOutputData::MapOutput(data) => {
-            let records: Records = Message::decode(data.value.as_slice())?;
-            Ok(Some(records))
+            let result: Ratifications = Message::decode(data.value.as_slice())?;
+            Ok(Some(result))
         }
         ModuleOutputData::StoreDeltas(_) => Err(format_err!(
             "invalid module output StoreDeltas, expecting MapOutput"

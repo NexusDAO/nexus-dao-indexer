@@ -29,6 +29,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "aleo-indexer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "axum 0.6.18",
+ "chrono",
+ "clap",
+ "diesel",
+ "futures 0.3.28",
+ "http",
+ "lazy_static",
+ "prost",
+ "prost-types",
+ "r2d2",
+ "r2d2_postgres",
+ "regex",
+ "serde",
+ "serde_json",
+ "snarkvm",
+ "thiserror",
+ "tokio",
+ "tokio-retry",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+ "tower-http",
+ "ureq",
+]
+
+[[package]]
 name = "aleo-std"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1438,37 +1469,6 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
-]
-
-[[package]]
-name = "nexus-dao-indexer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-stream",
- "axum 0.6.18",
- "chrono",
- "clap",
- "diesel",
- "futures 0.3.28",
- "http",
- "lazy_static",
- "prost",
- "prost-types",
- "r2d2",
- "r2d2_postgres",
- "regex",
- "serde",
- "serde_json",
- "snarkvm",
- "thiserror",
- "tokio",
- "tokio-retry",
- "tokio-stream",
- "tonic",
- "tonic-build",
- "tower-http",
- "ureq",
 ]
 
 [[package]]

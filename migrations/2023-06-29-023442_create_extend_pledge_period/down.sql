@@ -1,1 +1,0 @@
-DROP TABLE extend_pledge_period

@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package app.ratifications.v1;
+
+message Ratifications {
+    repeated Ratify ratifications = 1;
+}
+
+message Ratify {
+    string id = 1;
+    uint32 height = 2;
+    string type = 3;
+    optional uint64 starting_round = 4;
+    optional uint64 total_stake = 5;
+    optional uint64 block_reward = 6;
+    optional uint64 puzzle_reward = 7;
+}

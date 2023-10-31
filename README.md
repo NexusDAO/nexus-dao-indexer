@@ -31,7 +31,7 @@ In a second terminal, launch `up.sh` script which launches a Docker Compose setu
 In a third terminal, first export `DATABASE_URL` environment that is used to configure the database connection:
 
 ```
-export DATABASE_URL=postgres://admin:secure@localhost:5432/indexer-dev?sslmode=disable
+export DATABASE_URL=postgres://admin:secure@localhost:5432/aleo-indexer?sslmode=disable
 ```
 
 And then run the script:
