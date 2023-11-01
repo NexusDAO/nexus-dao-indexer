@@ -155,12 +155,13 @@ async fn sync(
                                 .unwrap();
                         });
                     }
-                } // FIXME: Handling of the cursor is missing here. It should be saved each time
-                  // a full block has been correctly inserted in the database. By saving it
-                  // in the database, we ensure that if we crash, on startup we are going to
-                  // read it back from database and start back our SubstreamsStream with it
-                  // ensuring we are continuously streaming without ever losing a single
-                  // element.
+                }
+                // FIXME: Handling of the cursor is missing here. It should be saved each time
+                // a full block has been correctly inserted in the database. By saving it
+                // in the database, we ensure that if we crash, on startup we are going to
+                // read it back from database and start back our SubstreamsStream with it
+                // ensuring we are continuously streaming without ever losing a single
+                // element.
             },
         }
     }

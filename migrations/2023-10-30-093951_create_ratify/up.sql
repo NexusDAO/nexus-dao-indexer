@@ -1,5 +1,6 @@
 CREATE TABLE ratify (
-  ratification_id TEXT PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
+  ratification_id TEXT NOT NULL,
   height BIGINT NOT NULL,
   type TEXT NOT NULL,
   starting_round TEXT,
