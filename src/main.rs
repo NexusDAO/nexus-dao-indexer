@@ -1,9 +1,19 @@
 extern crate diesel;
 
-use crate::database::insert_ratify;
+mod cli;
+mod db;
+mod graphql;
+mod models;
+mod proto;
+mod router;
+mod schema;
+mod substreams;
+mod substreams_stream;
+
 use crate::models::NewRatify;
-use crate::routes::router;
+use crate::router::router;
 use anyhow::{format_err, Context, Error};
+use axum::response::IntoResponse;
 use clap::Parser;
 use cli::{Cli, Commands};
 use futures03::StreamExt;
@@ -13,16 +23,6 @@ use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
 use substreams::SubstreamsEndpoint;
 use substreams_stream::{BlockResponse, SubstreamsStream};
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer};
-
-mod cli;
-mod database;
-mod handlers;
-mod models;
-mod proto;
-mod routes;
-mod schema;
-mod substreams;
-mod substreams_stream;
 
 #[tokio::main]
 async fn main() {
@@ -150,18 +150,17 @@ async fn sync(
                                 block_reward: block_reward.as_deref(),
                                 puzzle_reward: puzzle_reward.as_deref(),
                             };
-                            insert_ratify(new_ratify)
+                            NewRatify::insert(&new_ratify)
                                 .context("insertion in db failed")
                                 .unwrap();
                         });
                     }
-                }
-                // FIXME: Handling of the cursor is missing here. It should be saved each time
-                // a full block has been correctly inserted in the database. By saving it
-                // in the database, we ensure that if we crash, on startup we are going to
-                // read it back from database and start back our SubstreamsStream with it
-                // ensuring we are continuously streaming without ever losing a single
-                // element.
+                } // FIXME: Handling of the cursor is missing here. It should be saved each time
+                  // a full block has been correctly inserted in the database. By saving it
+                  // in the database, we ensure that if we crash, on startup we are going to
+                  // read it back from database and start back our SubstreamsStream with it
+                  // ensuring we are continuously streaming without ever losing a single
+                  // element.
             },
         }
     }
@@ -176,6 +175,7 @@ async fn serve(host: &String, port: &u16) {
     );
     let addr = SocketAddr::from_str(&format!("{}:{}", host, port)).unwrap();
     println!("listening on {}", addr);
+
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
