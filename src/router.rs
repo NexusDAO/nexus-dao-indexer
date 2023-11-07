@@ -1,7 +1,7 @@
 use crate::graphql::create_schema;
 use crate::models::Ratify;
 use async_graphql::http::GraphiQLSource;
-use async_graphql_axum::GraphQL;
+use async_graphql_axum::{GraphQL, GraphQLSubscription};
 use axum::extract::Path;
 use axum::response::{Html, IntoResponse};
 use axum::Json;
@@ -17,6 +17,7 @@ pub fn router() -> Router {
             "/graphql",
             get(graphiql).post_service(GraphQL::new(create_schema())),
         )
+        .route_service("/ws", GraphQLSubscription::new(create_schema()))
 }
 
 async fn health_handler() -> Response<String> {
@@ -31,5 +32,10 @@ async fn get_ratifications(Path(height): Path<u32>) -> (StatusCode, Json<Value>)
 }
 
 async fn graphiql() -> impl IntoResponse {
-    Html(GraphiQLSource::build().endpoint("/graphql").finish())
+    Html(
+        GraphiQLSource::build()
+            .endpoint("/graphql")
+            .subscription_endpoint("/ws")
+            .finish(),
+    )
 }
