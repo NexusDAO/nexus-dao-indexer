@@ -1,7 +1,7 @@
 ENDPOINT_URL ?= http://localhost:18015
 START_BLOCK ?= 0
 PACKAGE_FILE ?= ./substreams-aleo-v0.1.0.spkg
-MODULE_NAME ?= map_ratifications
+MODULE_NAME ?= map_block
 HOST ?= 127.0.0.1
 PORT ?= 8080
 

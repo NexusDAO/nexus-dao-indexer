@@ -7,6 +7,6 @@ fn main() {
 
     tonic_build::configure()
         .out_dir("src/proto")
-        .compile(&["proto/app.ratifications.proto"], &["proto"])
-        .expect("Failed to compile app proto(s)");
+        .compile(&["proto/aleo.extracted.v1.proto"], &["proto"])
+        .expect("Failed to compile aleo proto(s)");
 }

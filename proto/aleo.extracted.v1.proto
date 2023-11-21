@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package aleo.extracted.v1;
+
+message Extracted {
+    repeated Ratify ratifications = 1;
+    repeated Operation operations = 2;
+}
+
+message Ratify {
+    string id = 1;
+    uint32 height = 2;
+    string type = 3;
+    optional uint64 starting_round = 4;
+    optional uint64 total_stake = 5;
+    optional uint64 block_reward = 6;
+    optional uint64 puzzle_reward = 7;
+}
+
+message Operation {
+    enum OperationType {
+        initialize_mapping = 0;
+        insert_key_value = 1;
+        update_key_value = 2;
+        remove_key_value = 3;
+        remove_mapping = 4;
+    }
+    OperationType type = 1;
+    string program_name = 2;
+    string mapping_id = 3;
+    optional string key_id = 4;
+    optional string value_id = 5;
+    string mapping_name = 6;
+    optional string key = 7;
+    optional string value = 8;
+}

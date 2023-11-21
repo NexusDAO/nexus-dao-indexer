@@ -10,15 +10,15 @@ mod schema;
 mod substreams;
 mod substreams_stream;
 
-use crate::models::NewRatify;
+use crate::models::{Mapping, NewMapping, NewOperation, NewRatify};
+use crate::proto::operation::OperationType;
 use crate::router::router;
 use anyhow::{format_err, Context, Error};
-use axum::response::IntoResponse;
 use clap::Parser;
 use cli::{Cli, Commands};
 use futures03::StreamExt;
 use prost::Message;
-use proto::{module_output::Data as ModuleOutputData, BlockScopedData, Ratifications};
+use proto::{module_output::Data as ModuleOutputData, BlockScopedData, Extracted};
 use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
 use substreams::SubstreamsEndpoint;
 use substreams_stream::{BlockResponse, SubstreamsStream};
@@ -116,8 +116,10 @@ async fn sync(
                 Ok(BlockResponse::New(data)) => {
                     println!("Consuming module output (cursor {})", data.cursor);
 
-                    if let Some(Ratifications { ratifications }) =
-                        extract_ratifications(data, &module_name).unwrap()
+                    if let Some(Extracted {
+                        ratifications,
+                        operations,
+                    }) = extract_output(data, &module_name).unwrap()
                     {
                         ratifications.into_iter().for_each(|ratify| {
                             let starting_round = if ratify.starting_round.is_some() {
@@ -150,9 +152,46 @@ async fn sync(
                                 block_reward: block_reward.as_deref(),
                                 puzzle_reward: puzzle_reward.as_deref(),
                             };
-                            NewRatify::insert(&new_ratify)
-                                .context("insertion in db failed")
-                                .unwrap();
+                            NewRatify::insert(&new_ratify).unwrap();
+                        });
+
+                        operations.iter().for_each(|op| {
+                            NewOperation {
+                                type_: &op.r#type.to_string(),
+                                program_name: &op.program_name,
+                                mapping_id: &op.mapping_id,
+                                key_id: op.key_id.as_deref(),
+                                value_id: op.value_id.as_deref(),
+                                mapping_name: &op.mapping_name,
+                                key: op.key.as_deref(),
+                                value: op.value.as_deref(),
+                            }
+                            .insert()
+                            .unwrap();
+
+                            match OperationType::from(op.r#type()) {
+                                OperationType::UpdateKeyValue | OperationType::InsertKeyValue => {
+                                    NewMapping {
+                                        key_id: op.key_id.as_deref(),
+                                        value_id: op.value_id.as_deref(),
+                                        mapping_id: &op.mapping_id,
+                                        key: op.key.as_deref(),
+                                        value: op.value.as_deref(),
+                                        mapping_name: &op.mapping_name,
+                                        program_name: &op.program_name,
+                                        removed: false,
+                                    }
+                                    .upsert()
+                                    .unwrap();
+                                }
+                                OperationType::RemoveKeyValue => {
+                                    Mapping::remove_key_value(op.key_id()).unwrap();
+                                }
+                                OperationType::RemoveMapping => {
+                                    Mapping::remove_mapping(&op.mapping_name).unwrap();
+                                }
+                                _ => {}
+                            }
                         });
                     }
                 } // FIXME: Handling of the cursor is missing here. It should be saved each time
@@ -182,10 +221,7 @@ async fn serve(host: &String, port: &u16) {
         .unwrap();
 }
 
-fn extract_ratifications(
-    data: BlockScopedData,
-    module_name: &String,
-) -> Result<Option<Ratifications>, Error> {
+fn extract_output(data: BlockScopedData, module_name: &String) -> Result<Option<Extracted>, Error> {
     let output = data
         .outputs
         .first()
@@ -199,7 +235,7 @@ fn extract_ratifications(
     }
     match output.data.as_ref().unwrap() {
         ModuleOutputData::MapOutput(data) => {
-            let result: Ratifications = Message::decode(data.value.as_slice())?;
+            let result: Extracted = Message::decode(data.value.as_slice())?;
             Ok(Some(result))
         }
         ModuleOutputData::StoreDeltas(_) => Err(format_err!(
