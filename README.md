@@ -1,6 +1,6 @@
-## NexusDAO Indexer (proof of concept)
+## Aleo Indexer
 
-This repository show cases consumption of an NexsuDAO Substreams and saving it to a database using Diesel.
+This repository show cases consumption of an Aleo Substreams and saving it to a database using Diesel.
 
 ## Requirements
 
@@ -19,7 +19,7 @@ In a first terminal, launch `firehose-aleo` localnet setup:
 
 ```
 cd firehose-aleo
-./devel/localnet/start -c
+./devel/localnet/start
 ```
 
 In a second terminal, launch `up.sh` script which launches a Docker Compose setup running Postgres:
@@ -40,7 +40,7 @@ And then run the script:
 make all
 ```
 
-This will read start a Substreams using `./substreams-nexus-dao-v0.1.0.spkg`, receives all the `map_records` module output (of type `map`), decode the received entities and save them in the database.
+This will read start a Substreams using `./substreams-aleo-v0.1.0.spkg`, receives all the `map_records` module output (of type `map`), decode the received entities and save them in the database.
 
 If show case how you can consume a Substreams module of type `map` to insert data in a database.
 
